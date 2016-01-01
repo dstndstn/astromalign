@@ -14,5 +14,8 @@ You can either install it:
 - make install INSTALL_DIR=/place/to/install
 - # add /place/to/install/lib/python to your PYTHONPATH
 
-or install a local copy by downloading or cloning into a directory
-named "astrometry" within the `astromalign` directory.
+or build a local copy by downloading or cloning into a directory
+(renamed to `astrometry`) within the `astromalign` directory.  You
+need to `make && make py` in the `astrometry` directory to build the
+python libraries.
+
