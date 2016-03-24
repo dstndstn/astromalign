@@ -225,10 +225,21 @@ def main():
 
 
 
-'''
-refradec: CRVAL -- RA,Dec point about which to rotate.
-'''
 def findAffine(Tme, Tref, A, refradec, affine=True, order=1):
+    '''
+    Computes an Affine transformation between two aligned catalogs.
+
+    *Tme*: catalog to align
+    *Tref*: reference catalog
+    *A*: an Alignment object matching these two catalogs
+    *refradec*: tuple (refra, refdec) of the reference point about which to
+        rotate.
+    *affine*: if True, produce an affine transformation; otherwise, just a shift
+    *order*: polynomial distortion order.
+
+    Returns:
+    *Affine* object.
+    '''
     refra,refdec = refradec
     rascale = np.cos(np.deg2rad(refdec))
 
