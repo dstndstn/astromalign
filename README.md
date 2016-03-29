@@ -35,17 +35,18 @@ For example, let's align subsets of the 2MASS and NOMAD catalogs:
     from astrometry.util.fits import fits_table
     
     # Read catalogs, cut to small subregion
-    T1 = fits_table('2mass_hp000.fits')
-    T2 = fits_table('nomad_000.fits')
-    print(len(T1), '2MASS and', len(T2), 'NOMAD stars')
+    twomass = fits_table('2mass_hp000.fits')
+    nomad = fits_table('nomad_000.fits')
+    print(len(twomass), '2MASS and', len(nomad), 'NOMAD stars')
     
     from astrom_common import Alignment
     from astrom_inter import findAffine
     
     # Matching radius in arcsec
     radius = 1.
-    align = Alignment(T2, T1, radius)
-    # this actually does the work...
+    # Compute an alignment "from" NOMAD "to" 2MASS
+    align = Alignment(nomad, twomass, radius)
+    # this function actually does the work...
     align.shift()
     
     # Plot the dRA,dDec cloud
@@ -55,16 +56,16 @@ For example, let's align subsets of the 2MASS and NOMAD catalogs:
     loghist(align.match.dra_arcsec, align.match.ddec_arcsec)
     plt.savefig('before.png')
     
-    # Now compute an affine transformation from T2 to T1, given the "alignment"
-    refradec = [np.mean(T1.ra), np.mean(T1.dec)]
-    aff = findAffine(T2, T1, align, refradec)
+    # Now compute an affine transformation from nomad to twomass, given the "alignment"
+    refradec = [np.mean(twomass.ra), np.mean(twomass.dec)]
+    aff = findAffine(nomad, twomass, align, refradec)
     
-    # Apply the affine transformation to the HD stars to bring them onto the
-    # Tycho-2 system.
-    T2.ra, T2.dec = aff.apply(T2.ra, T2.dec)
+    # Apply the affine transformation to the NOMAD stars to bring them onto the
+    # 2MASS system.
+    nomad.ra, nomad.dec = aff.apply(nomad.ra, nomad.dec)
     
     # Plot the dRA,dDec cloud after
-    align.match.recompute_dradec(T2, T1)
+    align.match.recompute_dradec(nomad, twomass)
     plt.clf()
     loghist(align.match.dra_arcsec, align.match.ddec_arcsec)
     plt.savefig('after.png')
