@@ -567,17 +567,22 @@ def em_step(X, weights, mu, sigma, background, B):
 
 class Alignment(object):
     '''
-    self.match.I: matched pairs
-    self.subset : region around the peak in dRA,Ddec
-           - bool, len(subset) == len(match.I)
-               - sum(subset) == len(fore)
-    self.fore: float, foreground probabilities, for the "subset" objects
+    A class to represent the alignment between two catalogs.
     '''
     def __init__(self, tableA, tableB, searchradius=1.,
                  histbins=21, cov=True, cutrange=None, match=None,
                  maxB=None, minEMsteps=5,
                  initsigma=None, rascale=None,
                  ngaussians=1):
+        '''
+        
+
+        self.match.I: matched pairs
+        self.subset : region around the peak in dRA,Ddec
+        - bool, len(subset) == len(match.I)
+        - sum(subset) == len(fore)
+        self.fore: float, foreground probabilities, for the "subset" objects
+        '''
         self.TA = tableA
         self.TB = tableB
         if rascale is None:
