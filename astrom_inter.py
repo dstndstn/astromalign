@@ -223,8 +223,6 @@ def main():
         T.writeto(opt.outfn)
 
 
-
-
 def findAffine(Tme, Tref, A, refradec, affine=True, order=1):
     '''
     Computes an Affine transformation between two aligned catalogs.

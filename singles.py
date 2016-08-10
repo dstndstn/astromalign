@@ -603,7 +603,7 @@ def alignment_plots(afffn, name, Nkeep, Nuniform, R, NG, minoverlap,
 
                     if ii == jj:
                         OO[ii,jj] = 1.0
-                    print 'fields', ii,jj, '-> overlap', OO[ii,jj]
+                    #print 'fields', ii,jj, '-> overlap', OO[ii,jj]
 
                     if olo and OO[ii,jj] < olo:
                         continue
@@ -613,6 +613,10 @@ def alignment_plots(afffn, name, Nkeep, Nuniform, R, NG, minoverlap,
                     f2now = f2
                     if ii == jj:
                         f2now = 'ref'
+
+                    iname = os.path.basename(Taff.gst[i]).replace('.gst.fits','')
+                    jname = os.path.basename(Taff.gst[j]).replace('.gst.fits','')
+                    print 'Filters', f1, f2, 'images', iname, jname, ': %.1f x %.1f mas' % (esize[0]*1000., esize[1]*1000.)
 
                     c = fcmap[f2now]
                     p1 = plt.plot(x*1000, y*1000, '-', color=c, alpha=0.1, lw=2)
