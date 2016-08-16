@@ -256,6 +256,10 @@ def alignment_plots(afffn, name, Nkeep, Nuniform, R, NG, minoverlap,
                     lexsort=True, reffn=None, refrad=0.5,
                     cutfunction=None):
     Taff = fits_table(afffn)
+    # Trim extra spaces off of filenames (spaces added by some FITS readers)
+    Taff.flt = np.array([s.strip() for s in Taff.flt])
+    Taff.gst = np.array([s.strip() for s in Taff.gst])
+    
     affs = Affine.fromTable(Taff)
 
     TT, outlines, meta = readfltgsts(Taff.flt, Taff.gst, wcsexts, Nkeep,
@@ -616,7 +620,7 @@ def alignment_plots(afffn, name, Nkeep, Nuniform, R, NG, minoverlap,
 
                     iname = os.path.basename(Taff.gst[i]).replace('.gst.fits','')
                     jname = os.path.basename(Taff.gst[j]).replace('.gst.fits','')
-                    print 'Filters', f1, f2, 'images', iname, jname, ': %.1f x %.1f mas' % (esize[0]*1000., esize[1]*1000.)
+                    print 'Filters', f1, f2, 'images', iname, jname, ': %.1f mas' % (esize*1000.)
 
                     c = fcmap[f2now]
                     p1 = plt.plot(x*1000, y*1000, '-', color=c, alpha=0.1, lw=2)
