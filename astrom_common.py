@@ -6,14 +6,10 @@ import re
 
 import numpy as np
 
-from astrometry.util.file import *
-from astrometry.util.fits import *
+from astrometry.util.fits import fits_table
 from astrometry.util.util import Tan
-from astrometry.util.plotutils import *
 from astrometry.libkd import spherematch
 from astrometry.util.starutil_numpy import arcsec2dist, arcsec2deg
-from astrometry.util.plotutils import setRadecAxes, plothist
-from astrometry.util.miscutils import *
 import astrometry
 
 def memusage():
@@ -819,6 +815,7 @@ def plotresids2(ra, dec, dra, ddec, title=None, mas=True, bins=200,
                 dralabel=None, ddeclabel=None, ralabel=None, declabel=None,
                 dlim=None, doclf=True, **kwargs):
     import pylab as plt
+    from astrometry.util.plotutils import plothist
     scale = 1.
     if mas:
         scale = 1000.
@@ -1521,6 +1518,7 @@ def plotalignment(A, nbins=200, M=None, rng=None, doclf=True, docolorbar=True,
                   docutcircle=True, docontours=True, dologhist=False,
                   doaxlines=False, imshowargs={}):
     import pylab as plt
+    from astrometry.util.plotutils import plothist, loghist
     if doclf:
         plt.clf()
     if M is None:
