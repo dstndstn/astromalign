@@ -188,6 +188,7 @@ def findprimaries(TT, rad, mp):
 
 def write_update_script(wcsfn, outfn, scriptfn, f=sys.stderr, inext=0, outext=0,
                         verbose=True):
+    import pyfits
     hdr0 = pyfits.open(wcsfn)[inext].header
     hdr1 = pyfits.open(outfn)[outext].header
     if verbose:
@@ -919,6 +920,7 @@ class Affine(object):
     def toTable(affines, T=None):
         ### FIXME -- polynomial!
         if T is None:
+            from astrometry.util.fits import tabledata
             T = tabledata()
         N = len(affines)
         T.dra  = [ a.getShiftDeg()[0] for a in affines ]

@@ -1135,6 +1135,8 @@ def parse_flt_filename(fltfn):
 
 def plot_alignment_grid(allA, RR, Rref, cnames, filts, overlaps, thisi, outlines):
     import pylab as plt
+    from astrometry.util.plotutils import setRadecAxes
+    
     N = len(allA) + 1
     cols = int(np.ceil(np.sqrt(N)))
     rows = int(np.ceil(N / float(cols)))
