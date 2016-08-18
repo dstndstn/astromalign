@@ -1,4 +1,9 @@
 from __future__ import print_function
+if __name__ == '__main__':
+    # shouldn't be required, since we don't actually make any plots...
+    # excessive importing in astrom_common.py / singles.py?
+    import matplotlib
+    matplotlib.use('Agg')
 import sys
 import os
 from tempfile import NamedTemporaryFile

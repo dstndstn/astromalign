@@ -4,6 +4,8 @@ from glob import glob
 from math import sqrt, ceil, pi, cos
 import re
 
+import numpy as np
+
 from astrometry.util.file import *
 from astrometry.util.fits import *
 from astrometry.util.util import Tan
@@ -13,11 +15,6 @@ from astrometry.util.starutil_numpy import arcsec2dist, arcsec2deg
 from astrometry.util.plotutils import setRadecAxes, plothist
 from astrometry.util.miscutils import *
 import astrometry
-
-import numpy as np
-import pylab as plt
-import matplotlib
-from matplotlib.ticker import FixedFormatter
 
 def memusage():
     import resource
@@ -253,6 +250,7 @@ def set_fp_err():
     np.seterr(all='warn')
 
 def plotmatchdisthist(M, mas=True, nbins=100, doclf=True, color='b', **kwa):
+    import pylab as plt
     if doclf:
         plt.clf()
     R = np.sqrt(M.dra_arcsec**2 + M.ddec_arcsec**2)
@@ -297,6 +295,8 @@ def get_bboxes(wcs):
     return bboxes
 
 def resetplot():
+    import matplotlib
+    import pylab as plt
     kw = {}
     for p in ['bottom', 'top', 'left', 'right', 'hspace', 'wspace']:
         kw[p] = matplotlib.rcParams['figure.subplot.' + p]
@@ -304,6 +304,7 @@ def resetplot():
                                     
 
 def plotaffinegrid(affines, exag=1e3, affineOnly=True, R=0.025, tpre='', bboxes=None):
+    import pylab as plt
     NR = 3
     NC = int(ceil(len(affines)/3.))
     #R = 0.025 # 1.5 arcmin
@@ -339,6 +340,7 @@ def plotaffinegrid(affines, exag=1e3, affineOnly=True, R=0.025, tpre='', bboxes=
 
 
 def plotaffine(aff, RR, DD, exag=1000, affineOnly=False, doclf=True, **kwargs):
+    import pylab as plt
     if doclf:
         plt.clf()
     if affineOnly:
@@ -816,6 +818,7 @@ def plotresids(Tme, M, **kwargs):
 def plotresids2(ra, dec, dra, ddec, title=None, mas=True, bins=200,
                 dralabel=None, ddeclabel=None, ralabel=None, declabel=None,
                 dlim=None, doclf=True, **kwargs):
+    import pylab as plt
     scale = 1.
     if mas:
         scale = 1000.
@@ -1489,6 +1492,7 @@ def plotfitquality(H, xe, ye, A):
     '''
     H,xe,ye from plotalignment()
     '''
+    import pylab as plt
     xe /= 1000.
     ye /= 1000.
     xx = (xe[:-1] + xe[1:])/2.
@@ -1516,6 +1520,7 @@ def plotfitquality(H, xe, ye, A):
 def plotalignment(A, nbins=200, M=None, rng=None, doclf=True, docolorbar=True,
                   docutcircle=True, docontours=True, dologhist=False,
                   doaxlines=False, imshowargs={}):
+    import pylab as plt
     if doclf:
         plt.clf()
     if M is None:
@@ -1554,6 +1559,7 @@ def plotalignment(A, nbins=200, M=None, rng=None, doclf=True, docolorbar=True,
     return H,xe,ye
 
 def histlog10(x, **kwargs):
+    import pylab as plt
     I = (x > 0)
     L = np.log10(x[I])
     plt.clf()

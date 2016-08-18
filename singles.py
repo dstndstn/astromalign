@@ -10,10 +10,8 @@ import re
 from tempfile import *
 import colorsys
 
-import pylab as plt
 import numpy as np
 
-from matplotlib.patches import Rectangle
 from collections import Counter
 
 from astrom_common import *
@@ -25,7 +23,6 @@ from astrometry.util.fits import *
 from astrometry.util.util import *
 from astrometry.util.miscutils import *
 from astrometry.blind.plotstuff import *
-from astrometry.util.plotutils import *
 from astrometry.util.multiproc import multiproc
 
 def find_overlaps(r0,r1,d0,d1,NG,outlines):
@@ -255,6 +252,10 @@ def alignment_plots(afffn, name, Nkeep, Nuniform, R, NG, minoverlap,
                     perfield, nocache, mp, wcsexts,
                     lexsort=True, reffn=None, refrad=0.5,
                     cutfunction=None):
+    import pylab as plt
+    from astrometry.util.plotutils import (
+        PlotSequence, loghist, plothist, setRadecAxes)
+    
     Taff = fits_table(afffn)
     # Trim extra spaces off of filenames (spaces added by some FITS readers)
     Taff.flt = np.array([s.strip() for s in Taff.flt])
@@ -1050,6 +1051,7 @@ def alignment_plots(afffn, name, Nkeep, Nuniform, R, NG, minoverlap,
 
     left = 0
     for f1 in uf:
+        from matplotlib.patches import Rectangle
         n = cnt[f1]
         plt.gca().add_artist(Rectangle((left-0.4, y0), n-0.2, y1-y0,
                                        color=fcmap[f1], alpha=0.1, zorder=10))
@@ -1132,6 +1134,7 @@ def parse_flt_filename(fltfn):
 
 
 def plot_alignment_grid(allA, RR, Rref, cnames, filts, overlaps, thisi, outlines):
+    import pylab as plt
     N = len(allA) + 1
     cols = int(np.ceil(np.sqrt(N)))
     rows = int(np.ceil(N / float(cols)))
@@ -1280,6 +1283,8 @@ def align_dataset(name, dirs, mp, alplots, NG, minoverlap,
                   # expected size of the peak
                   targetrad = 0.1,
                   ):
+    from astrometry.util.plotutils import PlotSequence
+
     dataset = name
 
     if not 'weightrange' in akwargs:
@@ -1332,6 +1337,7 @@ def align_dataset(name, dirs, mp, alplots, NG, minoverlap,
 
     def plot_all_alignments(ap, RR, Rref, round, cnames, filts, ps, overlaps, outlines,
                             Nkeep):
+        import pylab as plt
         # symmetrize
         for i,AA in ap.items():
             for j,A in AA.items():
@@ -1620,6 +1626,7 @@ def align_dataset(name, dirs, mp, alplots, NG, minoverlap,
 
 
 if __name__ == '__main__':
+    import pylab as plt
     plt.figure(figsize=(10,10))
 
     from astrometry.util.ttime import *
