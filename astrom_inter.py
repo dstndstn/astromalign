@@ -1,3 +1,4 @@
+from __future__ import print_function
 if __name__ == '__main__':
     import matplotlib
     matplotlib.use('Agg')
@@ -22,7 +23,7 @@ def loadBrickCached(cam, brick, mergedfn=None, ps=None, **kwargs):
     T = mergeBrick(cam, brick, mergedfn, ps, **kwargs)
     if 'primary' in T.columns():
         T = T[T.primary]
-        print 'After cutting on primary:', len(T)
+        print('After cutting on primary:', len(T))
     return T
 
 
@@ -62,7 +63,7 @@ def main():
 
     if opt.brick is None or opt.cam is None:
         parser.print_help()
-        print 'Need --brick and --cam'
+        print('Need --brick and --cam')
         sys.exit(-1)
 
     if opt.emrad is None:
@@ -100,12 +101,12 @@ def main():
     if opt.magcut is not None:
         I = (Tme.mag < opt.magcut)
         Tme = Tme[I]
-        print 'Got', len(Tme), 'after mag cut (at', opt.magcut, ')'
+        print('Got', len(Tme), 'after mag cut (at', opt.magcut, ')')
 
     if opt.refmagcut is not None:
         I = (Tref.mag < opt.refmagcut)
         Tref = Tref[I]
-        print 'Got', len(Tref), 'reference after mag cut (at %g)' % opt.refmagcut
+        print('Got', len(Tref), 'reference after mag cut (at %g)' % opt.refmagcut)
         
     rl,rh = Tme.ra.min(), Tme.ra.max()
     dl,dh = Tme.dec.min(), Tme.dec.max()
@@ -125,23 +126,23 @@ def main():
     if opt.rotation != 0.:
         rot = opt.rotation
         # rotate.
-        print 'Applying rotation correction of', rot, 'deg'
+        print('Applying rotation correction of', rot, 'deg')
         Tme.ra, Tme.dec, trans0 = rotate_radec(rot, Tme.ra, Tme.dec, rmid, dmid)
 
     elif opt.rotlo is not None and opt.rothi is not None:
         lo = opt.rotlo
         hi = opt.rothi
         step = opt.rotstep
-        print 'Trying rotations between', lo, 'and', hi, 'in steps of', step
+        print('Trying rotations between', lo, 'and', hi, 'in steps of', step)
         variances = []
         rots = np.arange(lo, hi+step/2., step)
         for rot in rots:
-            print 'Rotation', rot
+            print('Rotation', rot)
             Tm = Tme.copy()
             Tm.ra, Tm.dec, nil = rotate_radec(rot, Tm.ra, Tm.dec, rmid, dmid)
-            print 'Matching...'
+            print('Matching...')
             M = Match(Tm, Tref, opt.radius)
-            print 'Got %i matches' % len(M.I)
+            print('Got %i matches' % len(M.I))
 
             nbins = 200
             H,xe,ye = plothist(M.dra_arcsec, M.ddec_arcsec, nbins)
@@ -158,7 +159,7 @@ def main():
             R2 = (X - nbins/2.)**2 + (Y - nbins/2.)**2
             I = (R2 < (0.95 * (nbins/2)**2))
             v = np.var(H[I])
-            print 'Variance:', v
+            print('Variance:', v)
             variances.append(v)
 
         plt.clf()
@@ -170,12 +171,12 @@ def main():
         I = np.argmax(variances)
         rot = rots[I]
 
-        print 'Applying rotation correction of', rot, 'deg'
+        print('Applying rotation correction of', rot, 'deg')
         Tme.ra, Tme.dec, trans0 = rotate_radec(rot, Tme.ra, Tme.dec, rmid, dmid)
 
     if trans0 is not None:
-        print 'Setting initial rotation affine transformation:'
-        print trans0
+        print('Setting initial rotation affine transformation:')
+        print(trans0)
 
     A = alignAndPlot(Tme, Tref, opt.radius, ps, emrad=opt.emrad, doweighted=False)
     #print 'Cov:', A.C
@@ -265,7 +266,7 @@ def findAffine(Tme, Tref, A, refradec, affine=True, order=1):
             dd = (dec - refdec)
             # rr and dd are in isotropic degrees
             comps.append((rr ** rao) * (dd ** deco) * w)
-            print 'ra order', rao, 'dec order', deco
+            print('ra order', rao, 'dec order', deco)
     # In the linear case (order=1), the terms are listed as rao=1 then deco=1
 
     Amat = np.vstack(comps).T
@@ -308,13 +309,13 @@ def alignAndPlot(Tme, Tref, rad, ps, doweighted=True, emrad=None, nearest=False,
         assert(False)
         A.findMatches(nearest=True)
         M = A.match
-        print 'dra,ddec arcsec:', M.dra_arcsec[:100], M.ddec_arcsec[:100]
+        print('dra,ddec arcsec:', M.dra_arcsec[:100], M.ddec_arcsec[:100])
 
     if A.shift() is None:
-        print 'Shift not found!'
+        print('Shift not found!')
         return None
     M = A.match
-    print 'Shift:', A.arcsecshift()
+    print('Shift:', A.arcsecshift())
     sr,sd = A.arcsecshift()
 
     sumd2 = np.sum(A.fore * ((M.dra_arcsec [A.subset] - sr)**2 +

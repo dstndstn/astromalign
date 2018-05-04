@@ -1,3 +1,4 @@
+from __future__ import print_function
 import sys
 import os
 from glob import glob
@@ -19,23 +20,23 @@ def memusage():
     gc.collect()
 
     if len(gc.garbage):
-        print 'Garbage list:'
+        print('Garbage list:')
         for obj in gc.garbage:
-            print obj
+            print(obj)
 
     # print heapy.heap()
     #ru = resource.getrusage(resource.RUSAGE_BOTH)
     ru = resource.getrusage(resource.RUSAGE_SELF)
     pgsize = resource.getpagesize()
-    print 'Memory usage:'
-    print 'page size', pgsize
+    print('Memory usage:')
+    print('page size', pgsize)
     mb = int(np.ceil(ru.ru_maxrss * pgsize / 1e6))
     unit = 'MB'
     f = 1.
     if mb > 1024:
         f = 1024.
         unit = 'GB'
-    print 'max rss: %.1f %s' % (mb/f, unit)
+    print('max rss: %.1f %s' % (mb/f, unit))
     #print 'shared memory size:', (ru.ru_ixrss / 1e6), 'MB'
     #print 'unshared memory size:', (ru.ru_idrss / 1e6), 'MB'
     #print 'unshared stack size:', (ru.ru_isrss / 1e6), 'MB'
@@ -62,7 +63,7 @@ def memusage():
             if unit == 'MB' and v > 1024:
                 unit = 'GB'
                 v /= 1024.
-            print key, '%.1f %s' % (v, unit)
+            print(key, '%.1f %s' % (v, unit))
             
     except:
         pass
@@ -77,7 +78,7 @@ class Field(object):
         for k,v in kwargs.items():
             setattr(self, k, v)
     def copy(self):
-        print 'Field copy(): dir', dir(self)
+        print('Field copy(): dir', dir(self))
         d = {}
         for k,v in self.__dict__.items():
             if k.startswith('__'):
@@ -102,11 +103,11 @@ def match_many(TT, rad, midra,middec, kdfns=None):
     # HACK -- can we use threads here?  (Can't use multiprocessing
     # since kd-trees refer to local memory).
 
-    print 'Building kd-trees...'
+    print('Building kd-trees...')
     for i,T in enumerate(TT):
         if kdfns is not None and os.path.exists(kdfns[i]):
             kd = spherematch.tree_open(kdfns[i])
-            print 'Loaded kd-tree from', kdfns[i]
+            print('Loaded kd-tree from', kdfns[i])
             closekds.append(kd)
         else:
             ok,ix,iy = fakewcs.radec2iwc(T.ra, T.dec)
@@ -115,45 +116,46 @@ def match_many(TT, rad, midra,middec, kdfns=None):
             freekds.append(kd)
             if kdfns is not None and kdfns[i] is not None:
                 spherematch.tree_save(kd, kdfns[i])
-                print 'Saved kd-tree to', kdfns[i]
+                print('Saved kd-tree to', kdfns[i])
         kds.append(kd)
 
-    print 'Matching trees...'
+    print('Matching trees...')
     kdrad = arcsec2deg(rad)
     matches = []
     for i,kdi in enumerate(kds):
         for j in range(i+1, len(kds)):
             kdj = kds[j]
             I,J,d = spherematch.trees_match(kdi, kdj, kdrad)
-            print 'Match', i, 'to', j, '-->', len(I)
+            print('Match', i, 'to', j, '-->', len(I))
             if len(I) == 0:
                 continue
             m = Match(TT[i], TT[j], rad, I=I, J=J, dists=d)
             matches.append((i, j, m))
-    print 'Freeing trees...'
+    print('Freeing trees...')
     for kd in closekds:
         spherematch.tree_close(kd)
     for kd in freekds:
         spherematch.tree_free(kd)
-    print 'Done'
+    print('Done')
     return matches
     
 
-def _makematch((i,j,Ti,Tj,rad)):
-    print 'Matching', i, 'to', j, '...'
+def _makematch(args):
+    (i,j,Ti,Tj,rad) = args
+    print('Matching', i, 'to', j, '...')
     M = Match(Ti,Tj,rad)
-    print 'Matching', i, 'to', j, '...',
-    print 'Got', len(M.I), 'matches'
+    print('Matching', i, 'to', j, '...',)
+    print('Got', len(M.I), 'matches')
     return i,j,M
 
 
 def findprimaries(TT, rad, mp):
     # start by initializing all to have primary = True
-    print 'Initializing primary arrays...'
+    print('Initializing primary arrays...')
     for i,Ti in enumerate(TT):
         Ti.primary = np.ones(len(Ti), bool)
 
-    print 'Setting up matching arguments...'
+    print('Setting up matching arguments...')
     # look at pairs of fields... (in parallel)
     ranges = []
     for Ti in TT:
@@ -168,10 +170,10 @@ def findprimaries(TT, rad, mp):
                 continue
             Tj = TT[j]
             margs.append((i, j, Ti, Tj, rad))
-    print 'Set up matching arguments...', len(margs)
-    print 'Matching...'
+    print('Set up matching arguments...', len(margs))
+    print('Matching...')
     matches = mp.map(_makematch, margs)
-    print 'Matching done'
+    print('Matching done')
 
     for i,j,M in matches:
         if len(M.I) == 0:
@@ -185,14 +187,24 @@ def findprimaries(TT, rad, mp):
 
     return matches
 
+def read_header_as_dict(filename, hdu):
+    try:
+        import pyfits
+        return pyfits.open(filename)[hdu].header
+    except:
+        import fitsio
+        hdr = fitsio.read_header(filename, ext=hdu)
+        d = dict()
+        for k in hdr.keys():
+            d[k] = hdr[k]
+        return d
 
 def write_update_script(wcsfn, outfn, scriptfn, f=sys.stderr, inext=0, outext=0,
                         verbose=True):
-    import pyfits
-    hdr0 = pyfits.open(wcsfn)[inext].header
-    hdr1 = pyfits.open(outfn)[outext].header
+    hdr0 = read_header_as_dict(wcsfn, inext)
+    hdr1 = read_header_as_dict(outfn, outext)
     if verbose:
-        print >>sys.stderr, "\n# Old file: %s\n# New file: %s" % (wcsfn, outfn)
+        print("\n# Old file: %s\n# New file: %s" % (wcsfn, outfn), file=sys.stderr)
     for k,v in hdr1.items():
         s = None
         v0 = hdr0.get(k, None)
@@ -203,7 +215,7 @@ def write_update_script(wcsfn, outfn, scriptfn, f=sys.stderr, inext=0, outext=0,
             s = '# Key "%s" unchanged: "%s"' % (k, str(v))
         else:
             if verbose:
-                print 'key', k, 'val', v, 'type', type(v)
+                print('key', k, 'val', v, 'type', type(v))
             if type(v) is float:
                 sv = '%.10G' % v
             else:
@@ -211,7 +223,6 @@ def write_update_script(wcsfn, outfn, scriptfn, f=sys.stderr, inext=0, outext=0,
             s = 'hedit %s %s %s ver- add+' % (scriptfn, k, sv)
         f.write(s + '\n')
     f.flush()
-
 
 def magcuts(T, mag1cut=None, mag2cut=None, copy=True):
     if mag1cut is not None and mag2cut is not None:
@@ -256,7 +267,7 @@ def plotmatchdisthist(M, mas=True, nbins=100, doclf=True, color='b', **kwa):
         rng = [0, M.rad*1000.]
     else:
         rng = [0, M.rad]
-    print 'Match distances: median', np.median(R), 'arcsec'
+    print('Match distances: median', np.median(R), 'arcsec')
     n,b,p = plt.hist(R, nbins, range=rng, histtype='step', color=color, **kwa)
     if mas:
         plt.xlabel('Match distance (mas)')
@@ -272,11 +283,11 @@ def findFile(fn, path=''):
         g = os.path.join(path, fn)
     G = glob(g)
     if len(G) == 0:
-        print 'Could not find file "%s" in path "%s"' % (fn,path)
+        print('Could not find file "%s" in path "%s"' % (fn,path))
         return None
     if len(G) > 1:
-        print 'Warning: found', len(G), 'matches to filename pattern', g
-        print 'Keeping', G[0]
+        print('Warning: found', len(G), 'matches to filename pattern', g)
+        print('Keeping', G[0])
     return G[0]
 
 def get_bboxes(wcs):
@@ -418,7 +429,7 @@ def em_cov_step(X, mu, C, background, B, Creg=1e-6):
     # M:
     # maximize mu, C:
     if np.sum(fore) == 0:
-        print 'em_cov_step: no foreground weight'
+        print('em_cov_step: no foreground weight')
         return None
     mu = np.sum(fore[:,np.newaxis] * X, axis=0) / np.sum(fore)
 
@@ -449,7 +460,7 @@ def em_cov_step(X, mu, C, background, B, Creg=1e-6):
     C += np.eye(2) * Creg**2
 
     if np.linalg.det(C) < 1e-30:
-        print '  -> det(C) =', np.linalg.det(C), ', bailing out.'
+        print('  -> det(C) =', np.linalg.det(C), ', bailing out.')
         return None
 
     #print 'mu', mu
@@ -507,7 +518,7 @@ def em_step(X, weights, mu, sigma, background, B):
     weights /= np.sum(weights)
     
     #print 'em_step: X', X.shape, 'mu', mu.shape, 'sigma', sigma.shape, 'background', background, 'B', B
-    print '    em_step: weights', weights, 'mu', mu, 'sigma', sigma, 'background fraction', B
+    print('    em_step: weights', weights, 'mu', mu, 'sigma', sigma, 'background fraction', B)
     # E:
     # fg = p( Y, Z=f | theta ) = p( Y | Z=f, theta ) p( Z=f | theta )
     fg = gauss2d(X, mu, sigma) * (1. - B) * weights
@@ -761,7 +772,7 @@ class Alignment(object):
             # assert(sigma < 0.1)
             # print 'Found match sigma:', sigma
             if np.min(sigma) == 0:
-                print 'EM failed'
+                print('EM failed')
                 return None
 
             # em_step returns the foreground/background assignments of the *previous*
@@ -1018,20 +1029,20 @@ class Affine(object):
         # do an SVD to express T as a rotation matrix.
         M = np.array([[self.T[0]+1., self.T[1]], [self.T[2], self.T[3]+1.]])
         U,S,V = np.linalg.svd(M)
-        print 'approx rotation:'
-        print 'M='
-        print M
-        print 'U='
-        print U
-        print 'V='
-        print V
-        print 'S='
-        print S
+        print('approx rotation:')
+        print('M=')
+        print(M)
+        print('U=')
+        print(U)
+        print('V=')
+        print(V)
+        print('S=')
+        print(S)
         r1 = np.rad2deg(np.arctan2(U[0,1], U[0,0]))
         r2 = np.rad2deg(np.arctan2(V[0,1], V[0,0]))
-        print 'r1', r1
-        print 'r2', r2
-        print 'rotation', r1-r2
+        print('r1', r1)
+        print('r2', r2)
+        print('rotation', r1-r2)
         return r1-r2
 
     def changeReferencePoint(self, newrefra, newrefdec):
@@ -1147,10 +1158,10 @@ class Affine(object):
 
         if self.sipterms is not None:
             if ignoreSip:
-                print 'Ignoring SIP terms in Affine.offset()'
+                print('Ignoring SIP terms in Affine.offset()')
             else:
                 assert((x is not None) and (y is not None))
-                print 'Affine.offset(): Applying SIP terms'
+                print('Affine.offset(): Applying SIP terms')
                 dx,dy = self.offsetSipXy(x, y)
                 (cd1,cd2,cd3,cd4) = self.cdmatrix
                 dr += cd1 * dx + cd2 * dy
@@ -1161,7 +1172,7 @@ class Affine(object):
         k = 0
         dx = np.zeros(x.shape, float)
         dy = np.zeros_like(dx)
-        print 'refxy', self.refxy
+        print('refxy', self.refxy)
         x0,y0 = self.refxy
         #print 'dx,dy', dx.shape, dy.shape
         for order in range(2, 11):
@@ -1278,13 +1289,13 @@ class Affine(object):
 
         if self.sipterms is not None:
             if other.sipterms is not None:
-                print 'Adding SIP terms:', self.sipterms, other.sipterms
+                print('Adding SIP terms:', self.sipterms, other.sipterms)
                 assert(self.refxy == other.refxy)
                 assert(self.cdmatrix == other.cdmatrix)
                 newterms = np.zeros(max(len(self.sipterms), len(other.sipterms)))
                 newterms[:len(self.sipterms)] += self.sipterms
                 newterms[:len(other.sipterms)] += other.sipterms
-                print 'Setting new SIP terms:', newterms
+                print('Setting new SIP terms:', newterms)
                 self.sipterms = newterms
 
         else:
@@ -1365,7 +1376,7 @@ def describeFilters(cam, Tme=None, delete_old_mag_cols=False):
         return meta
 
     else:
-        print 'Unknown camera: "%s"' % cam
+        print('Unknown camera: "%s"' % cam)
         return None
 
     if Tme is not None:
@@ -1389,23 +1400,23 @@ def getNearMags(me, ref):
 def loadBrick(cam, path='.', duprad=None, merge=True, itab=None):
     if cam == 'CFHT':
         cfht = fits_table('data/cfht/cfht.fits')
-        print 'Got', len(cfht), 'CFHT sources'
+        print('Got', len(cfht), 'CFHT sources')
         return cfht
 
     if cam == 'CFHT2':
         cfht = fits_table('data/cfht/cfht-2mass.fits')
-        print 'Got', len(cfht), 'CFHT2 sources'
+        print('Got', len(cfht), 'CFHT2 sources')
         return cfht
 
     Tme = []
-    print 'Reading', len(itab), 'files'
+    print('Reading', len(itab), 'files')
     affines = Affine.fromTable(itab)
     for i in range(len(itab)):
         fn = itab.filename[i]
-        print 'Reading', fn
+        print('Reading', fn)
         G = glob(os.path.join(path, fn))
         if len(G) == 0:
-            print 'Could not find file', fn, 'in path', path
+            print('Could not find file', fn, 'in path', path)
             sys.exit(-1)
         fn = G[0]
         T = fits_table(fn)
@@ -1423,7 +1434,7 @@ def loadBrick(cam, path='.', duprad=None, merge=True, itab=None):
         Ti = Tme.pop()
         Tallme.append(Ti)
     Tme = Tallme
-    print 'Merged all', cam, 'fields to make', len(Tme), 'sources'
+    print('Merged all', cam, 'fields to make', len(Tme), 'sources')
 
     if duprad == 0.0:
         # don't do any matching
@@ -1439,17 +1450,17 @@ def loadBrick(cam, path='.', duprad=None, merge=True, itab=None):
             duprad = 0.03
 
     M = Match(Tme, Tme, duprad, notself=True)
-    print 'With symmetric matches, got', len(M.I), 'matches within', duprad, 'arcsec'
+    print('With symmetric matches, got', len(M.I), 'matches within', duprad, 'arcsec')
     # Trim symmetric matches -- i->j and j->i
     II = (M.I < M.J)
     M.cut(II)
-    print 'After trimming, got', len(M.I), 'matches'
+    print('After trimming, got', len(M.I), 'matches')
     # Now all i < j
 
     # Don't allow matches within the same fieldid.
     II = (Tme.fieldid[M.I] != Tme.fieldid[M.J])
     M.cut(II)
-    print 'After cut on fieldid:', len(M.I)
+    print('After cut on fieldid:', len(M.I))
     
     # Next, in each matched pair we drop the star with the higher index (j)
     keep = np.ones(len(Tme), bool)
@@ -1481,9 +1492,9 @@ def loadBrick(cam, path='.', duprad=None, merge=True, itab=None):
         match[II] = match[match[II]]
     Tall.match = match
 
-    print 'Cut from', len(Tme), 'to',
+    print('Cut from', len(Tme), 'to',)
     Tme = Tme[keep]
-    print len(Tme)
+    print(len(Tme))
 
     return Tme, Tall, M
 
@@ -1622,8 +1633,8 @@ class Match(object):
             if nearest:
                 #pickle_to_file((X1, X2, r), 'nearest.pickle')
                 #sys.exit(-1)
-                print 'search rad arcsec', rad
-                print 'dist:', r
+                print('search rad arcsec', rad)
+                print('dist:', r)
                 (inds,dists2) = spherematch.nearest(X2, X1, r, notself)
                 dists = np.sqrt(dists2)
                 # spherematch.nearest(T1,T2) returns, for each point in T2,
@@ -1634,10 +1645,10 @@ class Match(object):
                 # flatnonzero(inds != -1) are indices of matches in X1
                 # inds[inds != -1] are indices of matches in X2
 
-                print 'nearest: X1', X1.shape, 'X2', X2.shape
-                print 'inds', inds.shape, 'dists', dists.shape
+                print('nearest: X1', X1.shape, 'X2', X2.shape)
+                print('inds', inds.shape, 'dists', dists.shape)
                 I = np.flatnonzero(inds != -1)
-                print ' number != -1:', len(I)
+                print(' number != -1:', len(I))
                 # We want "inds" to be  ( index in X1, index in X2 ) * nmatches
                 #inds = np.vstack((np.flatnonzero(I), inds[I])).T
                 #dists = dists[I]
@@ -1740,7 +1751,7 @@ def readGsts(fns, keepcols=[]):
 
     for fn in fns:
         T = fits_table(fn)
-        print fn, ' --> ', len(T), 'stars'
+        print(fn, ' --> ', len(T), 'stars')
         # remove columns we don't use (to save some memory)
         # 'mag1_err', 'mag2_err',
         for k in cutcols:

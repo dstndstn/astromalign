@@ -1,3 +1,4 @@
+from __future__ import print_function
 if __name__ == '__main__':
     import matplotlib
     matplotlib.use('Agg')
@@ -324,12 +325,12 @@ class Intra(object):
         ral,rah = 1000,-1000
         decl,dech = 1000,-1000
         for i in range(len(TT)):
-            print 'File', i, 'RA', TT[i].ra.min(), TT[i].ra.max(), 'DEC', TT[i].dec.min(), TT[i].dec.max()
+            print('File', i, 'RA', TT[i].ra.min(), TT[i].ra.max(), 'DEC', TT[i].dec.min(), TT[i].dec.max())
             ral = min(ral, TT[i].ra.min())
             rah = max(rah, TT[i].ra.max())
             decl = min(decl, TT[i].dec.min())
             dech = max(dech, TT[i].dec.max())
-        print 'ra,dec range', ral,rah,decl,dech
+        print('ra,dec range', ral,rah,decl,dech)
 
         #ps3 = PlotSequence('tst-', format='%02i')
 
@@ -400,7 +401,7 @@ class Intra(object):
                     force_hist=False, range=None):
 
         if len(self.edges) == 0:
-            print 'Cannot create scatterplot() without edge data'
+            print('Cannot create scatterplot() without edge data')
             return False
 
         rng = range
@@ -505,13 +506,13 @@ class Intra(object):
 
         (subw,subh) = subplotsize
 
-        print 'x,y size', (TT[0].x.max() - TT[0].x.min()), (TT[0].y.max() - TT[0].y.min())
+        print('x,y size', (TT[0].x.max() - TT[0].x.min()), (TT[0].y.max() - TT[0].y.min()))
 
         if binsize is None:
             binsize = 200
 
         for i,T in enumerate(TT):
-            print 'xyoffsets: field', i
+            print('xyoffsets: field', i)
 
             if ps is None:
                 plt.subplot(subw,subh, i+1)
@@ -617,15 +618,15 @@ class Intra(object):
 
     # rad in arcsec
     def hsvoffsets(self, TT, rad, apply=False):
-        print 'hsv offsets plot'
+        print('hsv offsets plot')
         plt.clf()
 
         for ix,X in enumerate(self.edges):
             X = self.get_edge_dradec_arcsec(ix, corrected=apply, goodonly=True)
             (matchRA, matchDec, dra, ddec) = X
 
-            print 'matchRA,Dec:', len(matchRA), len(matchDec)
-            print 'dra,dec:', len(dra), len(ddec)
+            print('matchRA,Dec:', len(matchRA), len(matchDec))
+            print('dra,dec:', len(dra), len(ddec))
 
             for ra,dec,dr,dd in zip(matchRA, matchDec, dra, ddec):
                 angle = arctan2(dd, dr) / (2.*pi)
@@ -807,7 +808,7 @@ class Intra(object):
             #          aspect='auto', origin='lower', interpolation='nearest')
             #plt.colorbar()
             mx = H.max()
-            print 'max histogram:', mx
+            print('max histogram:', mx)
             step = max(mx / 5, 10)
             plt.contour(H.T, extent=ax, colors='k', zorder=15,
                         levels=np.arange(step, mx, step))
@@ -828,7 +829,7 @@ def alignfunc(args):
         return _real_alignfunc(args)
     except:
         import traceback
-        print 'Exception in alignfunc:'
+        print('Exception in alignfunc:')
         traceback.print_exc()
         raise
 
@@ -844,7 +845,7 @@ def _real_alignfunc(args):
         jname = j
 
     if not silent:
-        print 'Matching', i, 'to', jname, 'with radius', matchradius, 'arcsec...'
+        print('Matching', i, 'to', jname, 'with radius', matchradius, 'arcsec...')
     A = Alignment(Ti, Tj, searchradius = matchradius,
                   **align_kwargs)
     # apply maximum magnitude difference cuts
@@ -861,10 +862,10 @@ def _real_alignfunc(args):
         A.match = M
     if A.shift() is None:
         if not silent:
-            print 'Failed to find a shift between files', i, 'and', j
+            print('Failed to find a shift between files', i, 'and', j)
         return i,j,None
     if not silent:
-        print 'Matching', i, 'to', jname, ': got', len(A.match.I)
+        print('Matching', i, 'to', jname, ': got', len(A.match.I))
 
     # use EM results to weight the matches
     # A.match (a Match object) are the matches
@@ -899,7 +900,7 @@ def _real_alignfunc(args):
         maxw = np.max(w)
         K = np.flatnonzero(w >= (maxw * weightrange))
         if not silent:
-            print 'Cut to', len(K), 'of', len(w), 'matches with weights greater than fraction', weightrange, 'of max'
+            print('Cut to', len(K), 'of', len(w), 'matches with weights greater than fraction', weightrange, 'of max')
         # A.subset is a bool array
         assert(S.dtype == bool)
         S = np.flatnonzero(S)[K]
@@ -973,11 +974,11 @@ def intrabrickshift(TT, matchradius = 1.,
         assert(len(cdmatrices) == len(TT))
         Nsip = n_sip_terms(sip_order)
         Nsipgroups = len(np.unique([sg for sg in sip_groups if sg != -1]))
-        print 'sip groups:', np.unique([sg for sg in sip_groups if sg != -1])
-        print 'Solving for', Nsip, 'SIP terms for each of', Nsipgroups, 'groups'
+        print('sip groups:', np.unique([sg for sg in sip_groups if sg != -1]))
+        print('Solving for', Nsip, 'SIP terms for each of', Nsipgroups, 'groups')
 
     if do_rotation and do_affine:
-        print 'Both do_rotation and do_affine are set -- doing affine.'
+        print('Both do_rotation and do_affine are set -- doing affine.')
         do_affine = True
         do_rotation = False
 
@@ -1028,7 +1029,7 @@ def intrabrickshift(TT, matchradius = 1.,
         mdhrad = matchradius
 
     silent = not (mp is None)
-    print 'silent?', silent
+    print('silent?', silent)
 
     # In order to use parallel "map", we build a list of arguments and
     # unpack results below.
@@ -1045,10 +1046,10 @@ def intrabrickshift(TT, matchradius = 1.,
                 # camera to match to ref.
                 if refmag1cut is not None:
                     P = P[P.mag1 < refmag1cut]
-                    print 'Cut to', len(P), 'passing mag1 cut at', refmag1cut
+                    print('Cut to', len(P), 'passing mag1 cut at', refmag1cut)
                 if refmag2cut is not None:
                     P = P[P.mag2 < refmag2cut]
-                    print 'Cut to', len(P), 'passing mag2 cut at', refmag2cut
+                    print('Cut to', len(P), 'passing mag2 cut at', refmag2cut)
 
                 margs.append((P, ref, refrad, {}, None, None, i, j, mdhrad,
                               alignplotargs, silent))
@@ -1072,8 +1073,8 @@ def intrabrickshift(TT, matchradius = 1.,
                 margs.append((Ti, Tj, matchradius, align_kwargs, mag1diff, mag2diff, i, j,
                               mdhrad, alignplotargs, silent))
 
-    print 'Intrabrickshift: before alignment:'
-    print Time()-t0
+    print('Intrabrickshift: before alignment:')
+    print(Time()-t0)
 
     if mp is None:
         aligns = map(alignfunc, margs)
@@ -1098,7 +1099,7 @@ def intrabrickshift(TT, matchradius = 1.,
 
     del margs
 
-    print 'Intrabrickshift: after alignment:'
+    print('Intrabrickshift: after alignment:')
     Time()-t0
 
     # build 2-D map aligngrid.
@@ -1128,7 +1129,7 @@ def intrabrickshift(TT, matchradius = 1.,
         intra.aligngrid = aligngrid
 
     NC = Nfields * Nparams + Nglobal
-    print 'NC', NC
+    print('NC', NC)
     colnorm = np.zeros(NC)
     sprows = []
     spcols = []
@@ -1343,11 +1344,11 @@ def intrabrickshift(TT, matchradius = 1.,
     del aligngrid
 
 
-    print 'Intrabrickshift: after building sparse:'
-    Time()-t0
+    print('Intrabrickshift: after building sparse:')
+    print(Time()-t0)
 
     # Divide each column (parameter derivative) by its L2 norm
-    print 'Scaling columns...'
+    print('Scaling columns...')
     colnorm = np.sqrt(colnorm)
     for cc,vv in zip(spcols, spvals):
         # assert(all cc are the same int)
@@ -1360,14 +1361,14 @@ def intrabrickshift(TT, matchradius = 1.,
     spvals = np.hstack(spvals)
     allresids = np.hstack(allresids)
 
-    print 'sparse matrix:', len(sprows), len(spcols), len(spvals)
-    print 'rhs:', len(allresids)
+    print('sparse matrix:', len(sprows), len(spcols), len(spvals))
+    print('rhs:', len(allresids))
 
-    print 'Intrabrickshift: after building sparse (2):'
-    Time()-t0
+    print('Intrabrickshift: after building sparse (2):')
+    print(Time()-t0)
 
     NR = len(allresids)
-    print 'Building sparse matrix...', (NR,NC)
+    print('Building sparse matrix...', (NR,NC))
     #print 'max row', np.max(sprows)
     #print 'max col', np.max(spcols)
     M = scipy.sparse.csr_matrix((spvals, (sprows, spcols)), shape=(NR,NC))
@@ -1376,17 +1377,17 @@ def intrabrickshift(TT, matchradius = 1.,
     del sprows
     del spcols
 
-    print 'Intrabrickshift: after building sparse (3):'
-    Time()-t0
+    print('Intrabrickshift: after building sparse (3):')
+    print(Time()-t0)
 
     # lsqr can trigger floating-point errors
     np.seterr(all='warn')
     X = scipy.sparse.linalg.lsqr(M, -allresids, show=True, **lsqr_kwargs)
     set_fp_err()
     (J, istop, niters, r1norm, r2norm, anorm, acond, arnorm, xnorm, var) = X
-    print 'column-scaled J norm:', np.sqrt(np.sum(J**2))
-    print 'initial r2 norm:', np.sqrt(np.sum(allresids**2))
-    print 'final   r2 norm:', r2norm
+    print('column-scaled J norm:', np.sqrt(np.sum(J**2)))
+    print('initial r2 norm:', np.sqrt(np.sum(allresids**2)))
+    print('final   r2 norm:', r2norm)
     # 
     J = np.array(J)
     J /= colnorm
@@ -1394,15 +1395,15 @@ def intrabrickshift(TT, matchradius = 1.,
     bad = (colnorm == 0.0)
     if any(bad):
         J[bad] = 0.0
-        print 'Ignoring zero-norm columns; setting J=0'
-    print 'unscaled J norm', np.sqrt(np.sum(J**2))
+        print('Ignoring zero-norm columns; setting J=0')
+    print('unscaled J norm', np.sqrt(np.sum(J**2)))
 
-    print 'Intrabrickshift: after lsqr:'
-    Time()-t0
+    print('Intrabrickshift: after lsqr:')
+    print(Time()-t0)
     del M
     del allresids
-    print 'Intrabrickshift: after lsqr (2):'
-    Time()-t0
+    print('Intrabrickshift: after lsqr (2):')
+    print(Time()-t0)
 
     # Chop off the global parameters.
     if Nglobal:
@@ -1414,11 +1415,11 @@ def intrabrickshift(TT, matchradius = 1.,
     if do_sip:
         Jsip = Jglobals[:Nsip*Nsipgroups]
         Jglobals = Jglobals[Nsip*Nsipgroups:]
-        print 'Jsip:', Jsip
+        print('Jsip:', Jsip)
         # Split into the SIP terms for each group;
         # sips[group] are the SIP terms for SIP group "group".
         sips = [ Jsip[Nsip*i: Nsip*(i+1)] for i in range(Nsipgroups) ]
-        print 'sips:', sips
+        print('sips:', sips)
         #
         sipterms = []
         for sg in sip_groups:
@@ -1428,7 +1429,7 @@ def intrabrickshift(TT, matchradius = 1.,
                 sipterms.append(sips[sip_groups[sg]])
         #intra.set_sip_terms([sips[sip_groups[i]] for i in range(Nfields)])
         intra.set_sip_terms(sipterms)
-        print 'Intra SIP terms:', intra.sip
+        print('Intra SIP terms:', intra.sip)
 
     # We better have grabbed all the globals
     assert(len(Jglobals) == 0)
@@ -1460,13 +1461,13 @@ def intrabrickshift(TT, matchradius = 1.,
             aff.sipterms = intra.sip[i]
         
     for i,(sr,sd) in enumerate(zip(sra, sdec)):
-        print
-        print ('Field index %i: shift by (%.1f, %.1f) milli-arcsec' %
-               (i, sr*3600.*1000., sd*3600.*1000.))
+        print()
+        print('Field index %i: shift by (%.1f, %.1f) milli-arcsec' %
+              (i, sr*3600.*1000., sd*3600.*1000.))
         if do_rotation:
-            print '  Rotate by %.1f arcsec' % (rot[i] * 3600.)
+            print('  Rotate by %.1f arcsec' % (rot[i] * 3600.))
         if do_affine:
-            print '  Affine:', intra.get_affine(i)
+            print('  Affine:', intra.get_affine(i))
 
     return intra
 
@@ -1526,9 +1527,9 @@ def doplots(intra, TT, ps, wcs, xyplots, edgeplots, eps, rad, smallrad, vecscale
         ps.savefig()
 
     if edgeplots:
-        print 'edgeplot...'
+        print('edgeplot...')
         intra.edgeplot(TT, eps)
-        print 'edgescatter...'
+        print('edgescatter...')
         intra.edgescatter(eps)
 
     np.seterr(**err)
@@ -1548,12 +1549,12 @@ def intra_main(fields,
         cammeta = describeFilters(cam, T)
         T.cam = cam
     magname = cammeta.fnames[0]
-    print 'Mag1 name:', magname
+    print('Mag1 name:', magname)
 
     TT1 = TT
     if mag1cut is not None:
         TT1 = [ Ti[Ti.mag1 < mag1cut] for Ti in TT ]
-        print 'After mag1 cut at', mag1cut, 'got', sum([len(Ti) for Ti in TT1])
+        print('After mag1 cut at', mag1cut, 'got', sum([len(Ti) for Ti in TT1]))
                 
     intra = intrabrickshift(TT1, matchradius=radius,
                             mag1diff=mag1diff, mag2diff=mag2diff)
@@ -1584,24 +1585,24 @@ def main():
 
     if opt.outfn is None:
         parser.print_help()
-        print 'Need output filename (--output)'
+        print('Need output filename (--output)')
         sys.exit(-1)
 
     fns = args
     if len(fns) != 1:
         parser.print_help()
-        print 'Need a field list file.'
+        print('Need a field list file.')
         sys.exit(-1)
 
     fn = fns[0]
-    print 'Executing config file', fn
+    print('Executing config file', fn)
     loc = locals()
     execfile(fn, globals(), loc)
     fields = loc['fields']
 
-    print 'Got fields:'
+    print('Got fields:')
     for f in fields:
-        print '  ', f
+        print('  ', f)
 
     fns = [f.gst for f in fields]
     wcsfiles = [f.wcs for f in fields]
@@ -1614,7 +1615,7 @@ def main():
         cammeta = describeFilters(cam, T)
         T.cam = cam
     magname = cammeta.fnames[0]
-    print 'Mag1 name:', magname
+    print('Mag1 name:', magname)
 
     rad = opt.rad
     smallrad = opt.smallrad
@@ -1633,10 +1634,10 @@ def main():
     TT1 = TT
     if opt.mag1cut is not None:
         TT1 = [ Ti[Ti.mag1 < opt.mag1cut] for Ti in TT ]
-        print 'After mag1 cut at', opt.mag1cut, 'got', sum([len(Ti) for Ti in TT1])
+        print('After mag1 cut at', opt.mag1cut, 'got', sum([len(Ti) for Ti in TT1]))
     if opt.mag2cut is not None:
         TT1 = [ Ti[Ti.mag2 < opt.mag2cut] for Ti in TT ]
-        print 'After mag2 cut at', opt.mag2cut, 'got', sum([len(Ti) for Ti in TT1])
+        print('After mag2 cut at', opt.mag2cut, 'got', sum([len(Ti) for Ti in TT1]))
                 
     intra = intrabrickshift(TT1, matchradius=rad)
 

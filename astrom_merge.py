@@ -1,3 +1,4 @@
+from __future__ import print_function
 if __name__ == '__main__':
     import matplotlib
     matplotlib.use('Agg')
@@ -17,13 +18,13 @@ def mergeBrick(cam, brick, mergedfn=None, ps=None, force=False, magcuts=[], **kw
         mfn = 'merged-%s-%02i.fits' % (brick, cam)
 
     if not force and os.path.exists(mfn):
-        print 'Reading', mfn
+        print('Reading', mfn)
         T = fits_table(mfn)
-        print 'Got', len(T), cam, 'sources'
+        print('Got', len(T), cam, 'sources')
         return T
 
     (T, Tall, M) = loadBrick(cam, **kwargs)
-    print 'Saving to', mfn
+    print('Saving to', mfn)
     T.writeto(mfn)
 
     if ps is None:
@@ -116,7 +117,7 @@ def main():
 
     if opt.brick is None or opt.cam is None:
         parser.print_help()
-        print 'Need --brick and --cam'
+        print('Need --brick and --cam')
         sys.exit(-1)
 
     fns = None

@@ -1,4 +1,5 @@
 #! /usr/bin/env python
+from __future__ import print_function
 
 if __name__ == '__main__':
     import matplotlib
@@ -46,7 +47,7 @@ def find_overlaps(r0,r1,d0,d1,NG,outlines):
     for i,out in enumerate(outlines):
         areas[i] = polygon_area(out)
 
-    outlines2 = [np.array(zip(*out)) for out in outlines]
+    outlines2 = [np.array(list(zip(*out))) for out in outlines]
     for i,out1 in enumerate(outlines):
         for j,out2 in enumerate(outlines):
             if j <= i:
@@ -76,7 +77,7 @@ def wavelength(f):
     fmap = { 110:1100, 160:1600 }
     # trim F...W
     if not ((f[0] in ['F','f']) and (f[-1] in ['w','W','N','n'])):
-        print 'WARNING: wavelength("%s"): expected F###W' % f
+        print('WARNING: wavelength("%s"): expected F###W' % f)
     f = int(f[1:-1])
     f = fmap.get(f, f)
     return f
@@ -97,8 +98,9 @@ def filters_legend(lp, filters): #, **kwa):
     #plt.legend([lp[i] for i in I], [filters[i] for i in I], **kwa)
     return [lp[i] for i in I], [filters[i] for i in I]
 
-def _alfunc((Ti, Tj, R, i, j)):
-    print 'Matching', i, 'to', j
+def _alfunc(args):
+    (Ti, Tj, R, i, j) = args
+    print('Matching', i, 'to', j)
     M = Match(Ti, Tj, R)
     if len(M.I) == 0:
         return None
@@ -113,7 +115,7 @@ def readfltgst(fltfn, gstfn, wcsexts):
     filt = info.get('filt')
     filt = filt.upper()
     name = info.get('name')
-    hdr = pyfits.open(fltfn)[0].header
+    hdr = read_header_as_dict(fltfn, 0)
     exptime = hdr['EXPTIME']
     if chip:
         cname = '%s_%i' % (name,chip)
@@ -126,19 +128,19 @@ def readfltgst(fltfn, gstfn, wcsexts):
             wcs = Tan(fltfn, ext)
             break
         except:
-            print 'Failed to read WCS header from extension', ext, 'of', fltfn
+            print('Failed to read WCS header from extension', ext, 'of', fltfn)
             #import traceback
             #traceback.print_exc()
 
-    print 'Read WCS header from', fltfn
+    print('Read WCS header from', fltfn)
 
     outline = getwcsoutline(wcs)
 
     try:
         T = fits_table(gstfn)
-        print '  ->', len(T)
+        print('Read gst file', gstfn, '->', len(T), 'stars')
     except:
-        print 'WARNING: failed to read FITS file', gstfn
+        print('WARNING: failed to read FITS file', gstfn)
         import traceback
         traceback.print_exc()
         return None
@@ -152,6 +154,8 @@ def readfltgst(fltfn, gstfn, wcsexts):
         magnm = 'mag1_uvis'
     elif 'mag1_ir' in cols:
         magnm = 'mag1_ir'
+    elif 'mag1_wfpc2' in cols:
+        magnm = 'mag1_wfpc2'
     else:
         assert(False)
     T.magnm = magnm
@@ -169,14 +173,14 @@ def readfltgsts(fltfns, gstfns, wcsexts, Nkeep, Nuniform):
     exptimes = []
     Nall = []
     for fltfn,gstfn in zip(fltfns, gstfns):
-        print 'gst', gstfn
-        print 'flt', fltfn
+        print('gst', gstfn)
+        print('flt', fltfn)
         T, outline, meta = readfltgst(fltfn, gstfn, wcsexts)
         (chip, filt, name, cname, exptime) = meta
         if Nkeep and len(T) < Nkeep:
-            print 'WARNING: gst file', gstfn, 'contains "only"', len(T), 'stars'
+            print('WARNING: gst file', gstfn, 'contains "only"', len(T), 'stars')
 
-        print 'outline:', outline
+        print('outline in RA,Dec:', outline)
         rr,dd = outline
         ra,dec = np.mean(rr), np.mean(dd)
         # check for clockwise polygons
@@ -184,7 +188,7 @@ def readfltgsts(fltfns, gstfns, wcsexts, Nkeep, Nuniform):
         ddec = dd - dec
         crossprod = dra[0] * ddec[1] - dra[1] * ddec[0]
         if crossprod > 0:
-            print 'counter-clockwise outline -- reversing'
+            print('counter-clockwise outline -- reversing')
             outline = np.array(list(reversed(rr))), np.array(list(reversed(dd)))
 
         Nall.append(len(T))
@@ -197,8 +201,8 @@ def readfltgsts(fltfns, gstfns, wcsexts, Nkeep, Nuniform):
             ny = int(np.round(ymax / Nuniform))
             dy = ymax / ny
             Nper = int(Nkeep / (nx*ny))
-            print 'Uniform: xymax (%.1f,%.1f)' % (xmax,ymax), 'nx,ny', nx,ny,
-            print 'nkeep', Nkeep, ', n stars per bin:', Nper
+            print('Uniform: xymax (%.1f,%.1f)' % (xmax,ymax), 'nx,ny', nx,ny,
+                  'nkeep', Nkeep, ', n stars per bin:', Nper)
             xbin = (T.x / dx).astype(int).clip(0, nx-1)
             ybin = (T.y / dy).astype(int).clip(0, ny-1)
 
@@ -240,9 +244,9 @@ def readfltgsts(fltfns, gstfns, wcsexts, Nkeep, Nuniform):
     d0 = min([T.dec.min() for T in TT])
     d1 = max([T.dec.max() for T in TT])
     
-    print 'Read', len(TT), 'fields:'
+    print('Read', len(TT), 'fields:')
     for i,(cn,N,filt,t) in enumerate(zip(cnames,Nall,filts,exptimes)):
-        print '  ', i+1, cn, filt, 'exposure %.1f sec' % t, N, 'stars'
+        print('  ', i+1, cn, filt, 'exposure %.1f sec' % t, N, 'stars')
     return (TT, outlines,
             (chips, names, cnames, filts, exptimes, Nall, (r0,r1,d0,d1)),
             )
@@ -277,13 +281,13 @@ def alignment_plots(afffn, name, Nkeep, Nuniform, R, NG, minoverlap,
 
     Tref = None
     if reffn:
-        print 'Reading reference catalog', reffn
+        print('Reading reference catalog', reffn)
         Tref = fits_table(reffn)
-        print 'Got', len(Tref)
-        print 'Cutting to RA,Dec range', r0,r1,d0,d1
+        print('Got', len(Tref))
+        print('Cutting to RA,Dec range', r0,r1,d0,d1)
         Tref.cut((Tref.ra  > r0) * (Tref.ra  < r1) *
                  (Tref.dec > d0) * (Tref.dec < d1))
-        print 'Cut to', len(Tref)
+        print('Cut to', len(Tref))
         #ikwargs.update(ref=Tref, refrad=refrad)
 
     nstars = np.array([len(T) for T in TT])
@@ -307,9 +311,9 @@ def alignment_plots(afffn, name, Nkeep, Nuniform, R, NG, minoverlap,
 
     uf = np.unique(filts)
     uf = uf[argsort_filters(uf)]
-    print '(sorted) Filters:', uf
+    print('(sorted) Filters:', uf)
 
-    print 'Exposure times:', np.unique(exptimes)
+    print('Exposure times:', np.unique(exptimes))
 
     cc,ss,fcmap,fsmap = get_symbols_for_filts(uf)
 
@@ -338,7 +342,7 @@ def alignment_plots(afffn, name, Nkeep, Nuniform, R, NG, minoverlap,
     
     eepfn = name+'-ee.pickle'
     if summary and os.path.exists(eepfn) and (not nocache):
-        print 'Reading cache file', eepfn
+        print('Reading cache file', eepfn)
         EE = unpickle_from_file(eepfn)
     else:
         EE = []
@@ -361,7 +365,7 @@ def alignment_plots(afffn, name, Nkeep, Nuniform, R, NG, minoverlap,
                 if summary and j < i:
                     continue
                 if OO[i,j] <= minoverlap:
-                    print 'Overlap between fields', i, 'and', j, 'is', OO[i,j], '-- not trying to match them'
+                    print('Overlap between fields', i, 'and', j, 'is', OO[i,j], '-- not trying to match them')
                     continue
                 args.append((Ti, Tj, R, i, j))
             MR = mp.map(_alfunc, args)
@@ -621,7 +625,7 @@ def alignment_plots(afffn, name, Nkeep, Nuniform, R, NG, minoverlap,
 
                     iname = os.path.basename(Taff.gst[i]).replace('.gst.fits','')
                     jname = os.path.basename(Taff.gst[j]).replace('.gst.fits','')
-                    print 'Filters', f1, f2, 'images', iname, jname, ': %.1f mas' % (esize*1000.)
+                    print('Filters', f1, f2, 'images', iname, jname, ': %.1f mas' % (esize*1000.))
 
                     c = fcmap[f2now]
                     p1 = plt.plot(x*1000, y*1000, '-', color=c, alpha=0.1, lw=2)
@@ -638,7 +642,9 @@ def alignment_plots(afffn, name, Nkeep, Nuniform, R, NG, minoverlap,
             plt.axis([-M,M,-M,M])
             plt.title(f1 + ' match ellipses')
         I = argsort_filters(lp.keys())
-        plt.figlegend([lp.values()[i] for i in I], [lp.keys()[i] for i in I], 'upper right')
+        vals = list(lp.values())
+        keys = list(lp.keys())
+        plt.figlegend([vals[i] for i in I], [keys[i] for i in I], 'upper right')
 
         ostr = ''
         if olo and ohi:
@@ -659,15 +665,15 @@ def alignment_plots(afffn, name, Nkeep, Nuniform, R, NG, minoverlap,
         plt.subplot(len(uf), 1, i+1)
 
         A = areas[I]
-        print 'Areas:', A
+        print('Areas:', A)
         A = np.mean(A)
-        print 'Mean area in sq deg:', A
+        print('Mean area in sq deg:', A)
         A *= (3600.**2)
         fprate = (np.pi * R**2) / A
-        print 'False positive match rate (single star):', fprate
+        print('False positive match rate (single star):', fprate)
         # There are Nkeep "targets" and Nkeep "darts"
         Nfp = fprate * (Nkeep**2)
-        print 'Expected number of false positives:', Nfp
+        print('Expected number of false positives:', Nfp)
 
         lp,lt = [],[]
         for f2 in uf:
@@ -712,15 +718,15 @@ def alignment_plots(afffn, name, Nkeep, Nuniform, R, NG, minoverlap,
                 # print smallest nblock / (Nfp*oblock) for K
                 factorfp = nblock.flat[K] / (Nfp * oblock.flat[K])
                 B = np.argsort(factorfp)
-                print 'Filters', f1, '--', f2
-                print 'Number of matches as factor of FP rate:', factorfp[B]
+                print('Filters', f1, '--', f2)
+                print('Number of matches as factor of FP rate:', factorfp[B])
 
                 iy,ix = np.unravel_index(K[factorfp < 10.], oblock.shape)
                 iy = np.flatnonzero(I)[iy]
                 ix = np.flatnonzero(J)[ix]
                 for a,b in zip(iy,ix):
-                    print '  ', cnames[a], '--', cnames[b]
-                    print '    ', filts[a], filts[b]
+                    print('  ', cnames[a], '--', cnames[b])
+                    print('    ', filts[a], filts[b])
                     nbad[a] += 1
                     nbad[b] += 1
 
@@ -816,7 +822,7 @@ def alignment_plots(afffn, name, Nkeep, Nuniform, R, NG, minoverlap,
     fbad = nbad / ntotal
     I = np.argsort(-fbad)
     for i in I:
-        print cnames[i], filts[i], '%.2f bad' % fbad[i], '(%i / %i)' % (nbad[i], ntotal[i])
+        print(cnames[i], filts[i], '%.2f bad' % fbad[i], '(%i / %i)' % (nbad[i], ntotal[i]))
 
     plt.clf()
     for i,f1 in enumerate(uf):
@@ -1058,8 +1064,10 @@ def alignment_plots(afffn, name, Nkeep, Nuniform, R, NG, minoverlap,
         left += n
 
     plt.ylim(y0,y1)
-    I = argsort_filters(lp.keys())
-    plt.figlegend([lp.values()[i] for i in I], [lp.keys()[i] for i in I], 'upper right')
+    vals = list(lp.values())
+    keys = list(lp.keys())
+    I = argsort_filters(keys)
+    plt.figlegend([vals[i] for i in I], [keys[i] for i in I], 'upper right')
     plt.title('%s: matches by image' % name)
     ps.savefig()
 
@@ -1115,17 +1123,24 @@ def alignment_plots(afffn, name, Nkeep, Nuniform, R, NG, minoverlap,
         
 
 def parse_flt_filename(fltfn):
-    if 'chip' in fltfn:
+    if '_c0m.chip' in fltfn:
+        # WFPC2
+        m = re.search(r'proc/(?P<name>.{9})_(?P<filt>[Ff].{3}[WwNn])_c0m\.chip(?P<chip>[\d])\.fits', fltfn)
+        if m is None:
+            print('WARNING: failed to match regex', rex, 'for fltfn', fltfn)
+            return {}
+        chip = int(m.group('chip'))
+    elif 'chip' in fltfn:
         rex = r'proc/(?P<name>.{9,10})_(?P<filt>[Ff].{3}[WwNn])_fl.\.chip(?P<chip>[\d])\.fits'
         m = re.search(rex, fltfn)
         if m is None:
-            print 'WARNING: failed to match regex', rex, 'for fltfn', fltfn
+            print('WARNING: failed to match regex', rex, 'for fltfn', fltfn)
             return {}
         chip = int(m.group('chip'))
     else:
         m = re.search(r'proc/(?P<name>.{9})_(?P<filt>[Ff].{3}[WwNn])_fl.\.fits', fltfn)
         if m is None:
-            print 'WARNING: failed to match regex', rex, 'for fltfn', fltfn
+            print('WARNING: failed to match regex', rex, 'for fltfn', fltfn)
             return {}
         chip = 0
 
@@ -1181,11 +1196,11 @@ def plot_alignment_grid(allA, RR, Rref, cnames, filts, overlaps, thisi, outlines
     # Sort by % overlap.
     I = np.argsort([-(overlaps[j] + 1000.*(j == thisi)) for j,A in allA])
     
-    print 'Plotting alignments with', cnames[thisi]
+    print('Plotting alignments with', cnames[thisi])
     allA = [allA[j] for j in I]
     for k,(j,A) in enumerate(allA):
         plt.subplot(rows, cols, k + 2)
-        print '  number %i: row %i, col %i: %s, overlap %.2f' % (k+1, 1+((k+1)/cols), 1+((k+1)%cols), cnames[j], overlaps[j])
+        print('  number %i: row %i, col %i: %s, overlap %.2f' % (k+1, 1+((k+1)/cols), 1+((k+1)%cols), cnames[j], overlaps[j]))
         A = A.copy()
         #es = A.pop('estring')
         econ1 = A.pop('econ1')
@@ -1302,7 +1317,7 @@ def align_dataset(name, dirs, mp, alplots, NG, minoverlap,
         dirs = dd
         dirs.sort()
         for dirnm in dirs:
-            print '  dir:', dirnm
+            print('  dir:', dirnm)
             # GST filenames are like:
             # 11360_30-DOR_IR_ib6wr8kgq_F110W.gst.fits
             if st:
@@ -1311,28 +1326,32 @@ def align_dataset(name, dirs, mp, alplots, NG, minoverlap,
                 tag = 'gst'
             gstglob = os.path.join(dirnm, '*.%s.fits' % tag)
             gstfn = glob(gstglob)
-            print '  %s:'%tag, gstglob, '->', gstfn
+            print('  %s:'%tag, gstglob, '->', gstfn)
             # FLT filenames are like:
             # ib6wr8kgq_f110w_flt.fits   OR
             # j8f864a2q_F606W_flt.chip1.fits OR
             # ib6wr8kgq_f110w_flc.fits   ("flc" rather than "flt")
             fltglob1 = os.path.join(dirnm, '*_fl?.chip?.fits')
             fltfn1 = glob(fltglob1)
-            print '  flt:', fltglob1, '->', fltfn1
+            print('  flt pattern 1:', fltglob1, '->', fltfn1)
             fltglob2 = os.path.join(dirnm, '*_fl?.fits')
             fltfn2 = glob(fltglob2)
-            print '  flt:', fltglob2, '->', fltfn2
-            fltfn = fltfn1 + fltfn2
-            print fltfn
+            print('  flt pattern 2:', fltglob2, '->', fltfn2)
+            # WFPC2
+            fltglob3 = os.path.join(dirnm, '*_c0m.chip?.fits')
+            fltfn3 = glob(fltglob3)
+            print('  flt pattern 3:', fltglob3, '->', fltfn3)
+            fltfn = fltfn1 + fltfn2 + fltfn3
+            #print(fltfn)
             if len(gstfn) != 1 or len(fltfn) != 1:
-                print 'WARNING: found wrong number of [g]st/flt files (not 1); skipping'
+                print('WARNING: found wrong number of [g]st/flt files (not 1); skipping')
                 continue
             assert(len(gstfn) == 1)
             assert(len(fltfn) == 1)
             gstfn = gstfn[0]
             fltfn = fltfn[0]
-            print tag, gstfn
-            print 'flt', fltfn
+            print(tag, gstfn)
+            print('flt', fltfn)
             fltfns.append(fltfn)
             gstfns.append(gstfn)
         return fltfns,gstfns
@@ -1341,14 +1360,16 @@ def align_dataset(name, dirs, mp, alplots, NG, minoverlap,
                             Nkeep):
         import pylab as plt
         # symmetrize
-        for i,AA in ap.items():
+        keys = list(ap.keys())
+        for i in keys:
+            AA = ap[i]
             for j,A in AA.items():
                 if not j in ap:
                     ap[j] = {}
                 ap[j][i] = A
         for i in ap.keys():
             tt = 'Round %i (R=%i mas, Ref=%i mas): %s: %s' % (round, RR, Rref, cnames[i], filts[i])
-            allA = ap[i].items()
+            allA = list(ap[i].items())
             plot_alignment_grid(allA, RR, Rref, cnames, filts, overlaps[i,:], i, outlines)
             plt.suptitle(tt)
             ps.savefig()
@@ -1378,8 +1399,8 @@ def align_dataset(name, dirs, mp, alplots, NG, minoverlap,
     Nkeep = max([n for n,r in NkeepRads])
 
     fltfns,gstfns = getfltgsts(dirs)
-    print 'fltfns', fltfns
-    print 'gstfns', gstfns
+    print('fltfns', fltfns)
+    print('gstfns', gstfns)
 
     TT, outlines, meta = readfltgsts(fltfns, gstfns, wcsexts, Nkeep, Nuniform)
     if cutfunction is not None:
@@ -1387,9 +1408,9 @@ def align_dataset(name, dirs, mp, alplots, NG, minoverlap,
     (chips, names, cnames, filts, exptimes, Nall, rd) = meta
     r0,r1,d0,d1 = rd
 
-    print 'names', names
-    print 'cnames', cnames
-    print 'chips', chips
+    print('names', names)
+    print('cnames', cnames)
+    print('chips', chips)
 
     if merge_chips:
         # Find chip-pairs
@@ -1417,7 +1438,7 @@ def align_dataset(name, dirs, mp, alplots, NG, minoverlap,
         kk.sort()
         for name in kk:
             ii = namemap[name]
-            print 'name', name, 'ii', ii
+            print('name', name, 'ii', ii)
             mTT.append(merge_tables([TT[i] for i in ii]))
             orig_TT.extend([TT[i] for i in ii])
             nmerged.append(len(ii))
@@ -1458,7 +1479,7 @@ def align_dataset(name, dirs, mp, alplots, NG, minoverlap,
         T.mag1 = T.mag
 
     uf = np.unique(filts)
-    print 'Filters:', uf
+    print('Filters:', uf)
 
     cc,ss,fcmap,fsmap = get_symbols_for_filts(uf)
 
@@ -1504,14 +1525,14 @@ def align_dataset(name, dirs, mp, alplots, NG, minoverlap,
                    overlaps=tryoverlaps)
 
     if Tref is None and reffn:
-        print 'Reading reference catalog', reffn
+        print('Reading reference catalog', reffn)
         Tref = fits_table(reffn)
-        print 'Got', len(Tref)
+        print('Got', len(Tref))
     if Tref:
-        print 'Cutting to RA,Dec range', r0,r1,d0,d1
+        print('Cutting to RA,Dec range', r0,r1,d0,d1)
         Tref.cut((Tref.ra  > r0) * (Tref.ra  < r1) *
                  (Tref.dec > d0) * (Tref.dec < d1))
-        print 'Cut to', len(Tref)
+        print('Cut to', len(Tref))
         ikwargs.update(ref=Tref, refrad=refrad)
 
 
@@ -1521,21 +1542,21 @@ def align_dataset(name, dirs, mp, alplots, NG, minoverlap,
         first = (roundi == 0)
         last = (roundi == len(NkeepRads)-1)
 
-        print 'Round', roundi+1, ', cutting to', Nk
+        print('Round', roundi+1, ', cutting to', Nk)
         TT1 = [T[:Nk] for T in TT]
         nb = int(np.ceil(R / targetrad))
         #nb = max(nb, 11)
         nb = max(nb, 5)
         if nb % 2 == 0:
             nb += 1
-        print 'Nbins:', nb
+        print('Nbins:', nb)
         # mdhr = 0.1
         # mdhrad=mdhr, 
 
         if refrads is not None:
             assert(len(refrads) > roundi)
             refrad = refrads[roundi]
-            print 'Reference-catalog matching radius:', refrad
+            print('Reference-catalog matching radius:', refrad)
             ikwargs.update(refrad=refrad)
 
         # FIXME -- separate reference catalog nbins / histbins?
@@ -1608,7 +1629,7 @@ def align_dataset(name, dirs, mp, alplots, NG, minoverlap,
                 wcsext = ext
                 break
             except:
-                print 'Failed to read WCS header from extension', ext, 'of', fn
+                print('Failed to read WCS header from extension', ext, 'of', fn)
                 #import traceback
                 #traceback.print_exc()
         aff = affs[i].copy()
@@ -1618,7 +1639,10 @@ def align_dataset(name, dirs, mp, alplots, NG, minoverlap,
         outfn = tt.name
         wcs.write_to(outfn)
         #scriptfn = '%s[%i]' % (os.path.basename(fn), wcsext)
-        extmap = {1:1, 2:4, 0:1}
+        extmap = {1:1, 2:4, 0:1,
+        #### WFPC2 -- ???
+                  3: 7, 4: 10,
+        }
         scriptfn = '%s_flt.fits[%i]' % (name, extmap[chip])
         write_update_script(fn, outfn, scriptfn, fscript, inext=wcsext)
 
@@ -1695,16 +1719,16 @@ if __name__ == '__main__':
     align = True
     afffn = 'affines-%s.fits' % name
     if opt.plots:
-        print 'Looking for affines filename', afffn
+        print('Looking for affines filename', afffn)
         if os.path.exists(afffn):
             if opt.nocache:
-                print 'Affines file', afffn, 'exists, but --no-cache was set'
+                print('Affines file', afffn, 'exists, but --no-cache was set')
             else:
                 align = False
-                print 'File exists; not running alignment code'
+                print('File exists; not running alignment code')
         else:
-            print 'File not found; running alignment first'
-            
+            print('File not found; running alignment first')
+
     if align:
         NR = [(opt.nkeep1, opt.rad1),
               (opt.nkeep2, opt.rad2),
