@@ -1639,12 +1639,21 @@ def align_dataset(name, dirs, mp, alplots, NG, minoverlap,
         outfn = tt.name
         wcs.write_to(outfn)
         #scriptfn = '%s[%i]' % (os.path.basename(fn), wcsext)
-        extmap = {1:1, 2:4, 0:1,
-        #### WFPC2 -- ???
-                  3: 7, 4: 10,
-        }
-        scriptfn = '%s_flt.fits[%i]' % (name, extmap[chip])
-        write_update_script(fn, outfn, scriptfn, fscript, inext=wcsext)
+        extmap = {1:1, 2:4, 0:1, }
+
+        print('FLT filename:', fn)
+        print('Name:', name)
+        print('Chip:', chip)
+
+        # WFPC2
+        if '_c0m.chip' in fn:
+            scriptfn = '%s_c0m.fits[%i]' % (name, chip)
+            write_update_script(fn, outfn, scriptfn, fscript, inext=wcsext)
+            scriptfn = '%s_c1m.fits[%i]' % (name, chip)
+            write_update_script(fn, outfn, scriptfn, fscript, inext=wcsext)
+        else:
+            scriptfn = '%s_flt.fits[%i]' % (name, extmap[chip])
+            write_update_script(fn, outfn, scriptfn, fscript, inext=wcsext)
 
     fscript.close()
 
