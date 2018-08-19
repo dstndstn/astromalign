@@ -117,9 +117,11 @@ def addnew(F, avgcols):
         v = F.get(c)
         I = np.flatnonzero(v != 99)
         n = np.zeros(len(F), np.uint8)
+        s = np.zeros_like(v)
+        s[I] += v[I]
         n[I] += 1
-        F.set(c + '_sum') = v[I]
-        F.set(c + '_n') = n
+        F.set(c + '_sum', s)
+        F.set(c + '_n', n)
 
 def merge(FF, matchdist=0.06):
     F = FF[0].copy()
@@ -141,7 +143,7 @@ def merge(FF, matchdist=0.06):
             m = merged.get(col + '_sum')
             n = merged.get(col + '_n')
             f = F.get(col)
-            K = (f != 99)
+            K = (f[J] != 99)
             m[I[K]] += f[J[K]]
             n[I[K]] += 1
         merged.nmatched[I] += 1
