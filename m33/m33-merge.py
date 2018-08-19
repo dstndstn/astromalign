@@ -1,4 +1,6 @@
+from __future__ import print_function
 import matplotlib
+matplotlib.use('Agg')
 matplotlib.rcParams['figure.figsize'] = (12,8)
 import pylab as plt
 from astrometry.libkd.spherematch import *
