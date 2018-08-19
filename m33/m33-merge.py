@@ -27,7 +27,7 @@ Tall = merge_tables(TT)
 print('Total', len(Tall))
 
 print('Matching...')
-I,J,d = match_radec(Tall.ra, Tall.dec, Tall.ra, Tall.dec, 0.5/3600., notself=True)
+I,J,d = match_radec(Tall.ra, Tall.dec, Tall.ra, Tall.dec, 0.1/3600., notself=True)
 K, = np.nonzero(I < J)
 I = I[K]
 J = J[K]
@@ -95,32 +95,39 @@ plt.title('After alignment')
 plt.xlim(0,100)
 ps.savefig()
 
-def addnew(F):
+avgcols = ['avgra', 'avgdec',
+    'f110w_rate', 'f110w_raterr', 'f110w_vega', 'f110w_std', 'f110w_err',
+    'f110w_chi', 'f110w_snr', 'f110w_sharp', 'f110w_round', 'f110w_crowd',
+    'f160w_rate', 'f160w_raterr', 'f160w_vega', 'f160w_std', 'f160w_err',
+    'f160w_chi', 'f160w_snr', 'f160w_sharp', 'f160w_round', 'f160w_crowd',
+    'f275w_rate', 'f275w_raterr', 'f275w_vega', 'f275w_std', 'f275w_err',
+    'f275w_chi', 'f275w_snr', 'f275w_sharp', 'f275w_round', 'f275w_crowd',
+    'f336w_rate', 'f336w_raterr', 'f336w_vega', 'f336w_std', 'f336w_err',
+    'f336w_chi', 'f336w_snr', 'f336w_sharp', 'f336w_round', 'f336w_crowd',
+    'f475w_rate', 'f475w_raterr', 'f475w_vega', 'f475w_std', 'f475w_err',
+    'f475w_chi', 'f475w_snr', 'f475w_sharp', 'f475w_round', 'f475w_crowd',
+    'f814w_rate', 'f814w_raterr', 'f814w_vega', 'f814w_std', 'f814w_err',
+    'f814w_chi', 'f814w_snr', 'f814w_sharp', 'f814w_round', 'f814w_crowd',]
+
+def addnew(F, avgcols):
     F.nmatched = np.ones(len(F), np.uint8)
     F.avgra = F.ra.copy()
     F.avgdec = F.dec.copy()
+    for c in avgcols:
+        v = F.get(c)
+        I = np.flatnonzero(v != 99)
+        n = np.zeros(len(F), np.uint8)
+        n[I] += 1
+        F.set(c + '_sum') = v[I]
+        F.set(c + '_n') = n
 
 def merge(FF, matchdist=0.06):
     F = FF[0].copy()
-    addnew(F)
+    addnew(F, avgcols)
     merged = F
 
-    avgcols = ['avgra', 'avgdec',
-        'f110w_rate', 'f110w_raterr', 'f110w_vega', 'f110w_std', 'f110w_err',
-        'f110w_chi', 'f110w_snr', 'f110w_sharp', 'f110w_round', 'f110w_crowd',
-        'f160w_rate', 'f160w_raterr', 'f160w_vega', 'f160w_std', 'f160w_err',
-        'f160w_chi', 'f160w_snr', 'f160w_sharp', 'f160w_round', 'f160w_crowd',
-        'f275w_rate', 'f275w_raterr', 'f275w_vega', 'f275w_std', 'f275w_err',
-        'f275w_chi', 'f275w_snr', 'f275w_sharp', 'f275w_round', 'f275w_crowd',
-        'f336w_rate', 'f336w_raterr', 'f336w_vega', 'f336w_std', 'f336w_err',
-        'f336w_chi', 'f336w_snr', 'f336w_sharp', 'f336w_round', 'f336w_crowd',
-        'f475w_rate', 'f475w_raterr', 'f475w_vega', 'f475w_std', 'f475w_err',
-        'f475w_chi', 'f475w_snr', 'f475w_sharp', 'f475w_round', 'f475w_crowd',
-        'f814w_rate', 'f814w_raterr', 'f814w_vega', 'f814w_std', 'f814w_err',
-        'f814w_chi', 'f814w_snr', 'f814w_sharp', 'f814w_round', 'f814w_crowd',]
-
     for F in FF[1:]:
-        addnew(F)
+        addnew(F, avgcols)
         I,J,d = match_radec(merged.ra, merged.dec, F.ra, F.dec, matchdist/3600., nearest=True)
         print('Matched', len(I), 'of', len(merged), 'old and', len(F), 'new')
 
@@ -131,16 +138,25 @@ def merge(FF, matchdist=0.06):
 
         # matched --
         for col in avgcols:
-            m = merged.get(col)
+            m = merged.get(col + '_sum')
+            n = merged.get(col + '_n')
             f = F.get(col)
-            m[I] += f[J]
+            K = (f != 99)
+            m[I[K]] += f[J[K]]
+            n[I[K]] += 1
         merged.nmatched[I] += 1
-    
+        
         merged = merge_tables([merged, U])
 
     for col in avgcols:
-        m = merged.get(col)
-        m /= merged.nmatched.astype(float)
+        m = merged.get(col + '_sum')
+        m = merged.get(col + '_n')
+        avg = m / n.astype(float)
+        avg[n == 0] = 99.
+        merged.set(col, avg)
+
+        merged.delete_column(col + '_sum')
+        merged.delete_column(col + '_n')
     return merged
 
 print('Merging...')
