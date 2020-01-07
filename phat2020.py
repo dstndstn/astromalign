@@ -102,14 +102,18 @@ if __name__ == '__main__':
     #to_fits()
 
     from astrometry.libkd.spherematch import tree_build_radec, trees_match
+    from astrometry.libkd.spherematch import match_radec
     from astrometry.util.plotutils import *
     from astrometry.util.util import Tan
     import fitsio
 
+    from astrom_common import getwcsoutline
+    from singles import find_overlaps
+
     fns = glob('M31-*-bright.fits')
     fns.sort()
 
-    names = [fn.replace('-bright.fits', '') for fn in fns]
+    #fns = fns[:10]
 
     keepfns = []
     if True:
@@ -133,7 +137,6 @@ if __name__ == '__main__':
             keepfns.append(fn)
             fn = ff[0]
             wcs = Tan(fn)
-
             F = fitsio.FITS(fn)
             info = F[0].get_info()
             H,W = info['dims']
@@ -141,7 +144,18 @@ if __name__ == '__main__':
             wcs.imageh = H
             WCS.append(wcs)
 
-        bomb()
+            wcs.write_to(base + '-wcs.fits')
+
+        #bomb()
+        fns = keepfns
+
+    
+
+    names = [fn.replace('-bright.fits', '') for fn in fns]
+
+    outlines = [getwcsoutline(wcs) for wcs in WCS]
+
+    overlaps,areas = find_overlaps(outlines)
 
     print('Reading tables...')
     TT = [fits_table(fn) for fn in fns]
@@ -156,11 +170,43 @@ if __name__ == '__main__':
     mindec = np.min(alldec)
     maxdec = np.max(alldec)
 
+    print('RA,Dec range:', minra, maxra, mindec, maxdec)
+
+
     plothist(allra, alldec)
     plt.axis([maxra, minra, mindec, maxdec])
     plt.xlabel('RA (deg)')
     plt.ylabel('Dec (deg)')
     plt.savefig('match-all.png')
+
+    Tref = fits_table('gaia.fits')
+    r_arcsec = 0.2
+    I,J,d = match_radec(Tref.ra, Tref.dec, allra, alldec, r_arcsec/3600.)
+    dec = alldec[J]
+    cosdec = np.cos(np.deg2rad(dec))
+    dr = (Tref.ra[I]  - allra[J]) * cosdec * 3600.
+    dd = (Tref.dec[I] - alldec[J]) * 3600.
+    plt.clf()
+    rr = (-r_arcsec*1000, +r_arcsec*1000)
+    plothist(dr*1000., dd*1000., nbins=100, range=(rr, rr))
+    plt.xlabel('dRA (milli-arcsec)')
+    plt.ylabel('dDec (milli-arcsec)')
+    plt.savefig('match-all-ref-before.png')
+
+    # Initial matching of all stars
+    r_arcsec = 0.2
+    I,J,d = match_radec(allra, alldec, allra, alldec, r_arcsec/3600., notself=True)
+    dec = alldec[I]
+    cosdec = np.cos(np.deg2rad(dec))
+    dr = (allra[I]  - allra[J]) * cosdec * 3600.
+    dd = (alldec[I] - alldec[J]) * 3600.
+
+    plt.clf()
+    rr = (-r_arcsec*1000, +r_arcsec*1000)
+    plothist(dr*1000., dd*1000., nbins=100, range=(rr, rr))
+    plt.xlabel('dRA (milli-arcsec)')
+    plt.ylabel('dDec (milli-arcsec)')
+    plt.savefig('match-all-before.png')
 
     hulls = []
     from scipy.spatial import ConvexHull
@@ -174,7 +220,8 @@ if __name__ == '__main__':
 
     aligns = {}
 
-    for i in range(len(kds)):
+    for i in []:
+    #for i in range(len(kds)):
         for j in range(i+1, len(kds)):
             print('Matching trees', i, 'and', j)
 
@@ -193,16 +240,17 @@ if __name__ == '__main__':
             dr = (Ti[I].ra  - Tj[J].ra) * cosdec * 3600.
             dd = (Ti[I].dec - Tj[J].dec) * 3600.
 
-            al = Alignment(Ti, Tj, searchradius=r_arcsec)
-            print('Aligning...')
-            if not al.shift():
-                print('Failed to find Alignment between fields')
-                continue
-            aligns[(i,j)] = al
+            if False:
+                al = Alignment(Ti, Tj, searchradius=r_arcsec)
+                print('Aligning...')
+                if not al.shift():
+                    print('Failed to find Alignment between fields')
+                    continue
+                aligns[(i,j)] = al
 
-            plt.clf()
-            plotalignment(al)
-            plt.savefig('match-align-%02i-%02i.png' % (i,j))
+                plt.clf()
+                plotalignment(al)
+                plt.savefig('match-align-%02i-%02i.png' % (i,j))
 
             plt.clf()
             #plothist(np.append(Ti.ra, Tj.ra), np.append(Ti.dec, Tj.dec), docolorbar=False, doclf=False, dohot=False,
@@ -234,36 +282,54 @@ if __name__ == '__main__':
 
     #for roundi,(Nk,R) in enumerate(NkeepRads):
 
-    refrd = None
-    targetrad = 0.05
-
-    redrad = 0.1
+    refrad = 0.15
+    targetrad = 0.005
 
     ps = PlotSequence('shift')
 
-    Rads = [0.25, 0.1]
+    from astrom_intra import intrabrickshift
+    from singles import plot_all_alignments
+
+    #Rads = [0.25, 0.1]
+    Rads = [0.2, 0.05]
+    #Rads = [0.1]
     affs = None
+    # this is the reference point around which rotations take place, NOT reference catalog stars.
+    refrd = None
     for roundi, R in enumerate(Rads):
+
         TT1 = TT
 
         nb = int(np.ceil(R / targetrad))
         nb = max(nb, 5)
         if nb % 2 == 0:
             nb += 1
+        print('Round', roundi+1, ': matching with radius', R)
         print('Nbins:', nb)
+
+        # kwargs to pass to intrabrickshift
+        ikwargs = {}
+        minoverlap = 0.01
+        tryoverlaps = (overlaps > minoverlap)
+        ikwargs.update(do_affine=True, #mp=mp,
+                   #alignplotargs=dict(bins=25),
+                   alignplotargs=dict(bins=50),
+                   overlaps=tryoverlaps)
+
+        ikwargs.update(ref=Tref, refrad=refrad)
 
         # kwargs to pass to Alignment
         akwargs={}
-        # kwargs to pass to intrabrickshift
-        ikwargs={}
 
         i1 = intrabrickshift(TT1, matchradius=R, refradecs=refrd,
                              align_kwargs=dict(histbins=nb, **akwargs),
                              **ikwargs)
 
-        filts = ['' for n in names]
+        refrd = i1.get_reference_radecs()
 
+        filts = ['' for n in names]
         ap = i1.alplotgrid
+        Nk = 100000
         plot_all_alignments(ap, R*1000, refrad*1000, roundi+1, names, filts, ps,
                             overlaps, outlines, Nk)
         for T,aff in zip(TT,i1.affines):
@@ -274,4 +340,94 @@ if __name__ == '__main__':
         else:
             for a,a2 in zip(affs, i1.affines):
                 a.add(a2)
+
+    from astrom_common import Affine
+    T = Affine.toTable(affs)
+    T.filenames = fns
+    #T.flt = fltfns
+    #T.gst = gstfns
+    #T.chip = chips
+
+    # FAKE -- used as a name in alignment_plots
+    T.gst = np.array([n + '.gst.fits' for n in names])
+
+    afffn = 'affines.fits'
+    T.writeto(afffn)
+
+
+
+    # Final matching of all stars
+    allra  = np.hstack([T.ra  for T in TT])
+    alldec = np.hstack([T.dec for T in TT])
+
+    r_arcsec = 0.2
+    I,J,d = match_radec(allra, alldec, allra, alldec, r_arcsec/3600., notself=True)
+    dec = alldec[I]
+    cosdec = np.cos(np.deg2rad(dec))
+    dr = (allra[I]  - allra[J]) * cosdec * 3600.
+    dd = (alldec[I] - alldec[J]) * 3600.
+
+    plt.clf()
+    rr = (-r_arcsec*1000, +r_arcsec*1000)
+    plothist(dr*1000., dd*1000., nbins=100, range=(rr, rr))
+    plt.xlabel('dRA (milli-arcsec)')
+    plt.ylabel('dDec (milli-arcsec)')
+    plt.savefig('match-all-after.png')
+
+    I,J,d = match_radec(Tref.ra, Tref.dec, allra, alldec, r_arcsec/3600.)
+    dec = alldec[J]
+    cosdec = np.cos(np.deg2rad(dec))
+    dr = (Tref.ra[I]  - allra[J]) * cosdec * 3600.
+    dd = (Tref.dec[I] - alldec[J]) * 3600.
+    plt.clf()
+    rr = (-r_arcsec*1000, +r_arcsec*1000)
+    plothist(dr*1000., dd*1000., nbins=100, range=(rr, rr))
+    plt.xlabel('dRA (milli-arcsec)')
+    plt.ylabel('dDec (milli-arcsec)')
+    plt.savefig('match-all-ref-after.png')
+
+    r_arcsec = 0.02
+    I,J,d = match_radec(allra, alldec, allra, alldec, r_arcsec/3600., notself=True)
+    dec = alldec[I]
+    cosdec = np.cos(np.deg2rad(dec))
+    dr = (allra[I]  - allra[J]) * cosdec * 3600.
+    dd = (alldec[I] - alldec[J]) * 3600.
+    plt.clf()
+    rr = (-r_arcsec*1000, +r_arcsec*1000)
+    plothist(dr*1000., dd*1000., nbins=100, range=(rr, rr))
+    plt.xlabel('dRA (milli-arcsec)')
+    plt.ylabel('dDec (milli-arcsec)')
+    plt.savefig('match-all-after2.png')
+
+    T = fits_table()
+    T.ra = allra
+    T.dec = alldec
+    for col in ['f814w_vega', 'f475w_vega', 'f336w_vega',
+                'f275w_vega', 'f110w_vega', 'f160w_vega']:
+        T.set(col, np.hstack([t.get(col) for t in TT]))
+    T.writeto('aligned.fits')
+
+    if False:
+        from singles import alignment_plots
+
+        dataset = 'M31'
+        Nkeep = 100000
+        R = 0.1
+        minoverlap = 0.01
+        perfield=False
+        nocache=True
+        
+        from astrometry.util.multiproc import multiproc
+        mp = multiproc()
+        
+        filts = ['F475W' for n in names]
+        chips = [-1]*len(names)
+        exptimes = [1]*len(names)
+        Nall = [0]*len(names)
+        rd = (minra,maxra,mindec,maxdec)
+        cnames = names
+        meta = (chips, names, cnames, filts, exptimes, Nall, rd)
+        
+        alignment_plots(afffn, dataset, Nkeep, 0, R, minoverlap, perfield, nocache, mp, 0,
+                        tables=(TT, outlines, meta), lexsort=False)
 
