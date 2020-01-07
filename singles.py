@@ -250,8 +250,9 @@ def readfltgsts(fltfns, gstfns, wcsexts, Nkeep, Nuniform):
             )
 
 
-def alignment_plots(afffn, name, Nkeep, Nuniform, R, NG, minoverlap,
+def alignment_plots(afffn, name, Nkeep, Nuniform, R, minoverlap,
                     perfield, nocache, mp, wcsexts,
+                    tables=None,
                     lexsort=True, reffn=None, refrad=0.5,
                     cutfunction=None):
     import pylab as plt
@@ -265,8 +266,11 @@ def alignment_plots(afffn, name, Nkeep, Nuniform, R, NG, minoverlap,
     
     affs = Affine.fromTable(Taff)
 
-    TT, outlines, meta = readfltgsts(Taff.flt, Taff.gst, wcsexts, Nkeep,
-                                     Nuniform)
+    if tables is None:
+        TT, outlines, meta = readfltgsts(Taff.flt, Taff.gst, wcsexts, Nkeep,
+                                         Nuniform)
+    else:
+        TT, outlines, meta = tables
 
     if cutfunction is not None:
         TT,outlines,meta = cutfunction(TT, outlines, meta)
@@ -1757,7 +1761,7 @@ if __name__ == '__main__':
                       st=opt.st)
 
     if opt.plots:
-        alignment_plots(afffn, name, opt.nkeep, opt.uniform, opt.rad, opt.ng,
+        alignment_plots(afffn, name, opt.nkeep, opt.uniform, opt.rad,
                         opt.minoverlap, opt.fieldplots, opt.nocache, mp,
                         opt.wcsexts,
                         reffn=opt.refcat)
