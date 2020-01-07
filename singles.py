@@ -23,10 +23,10 @@ from astrometry.util.file import *
 from astrometry.util.fits import *
 from astrometry.util.util import *
 from astrometry.util.miscutils import *
-from astrometry.blind.plotstuff import *
+#from astrometry.blind.plotstuff import *
 from astrometry.util.multiproc import multiproc
 
-def find_overlaps(r0,r1,d0,d1,NG,outlines):
+def find_overlaps(outlines):
     '''
     (ignored) NG: number of grid points, eg 100
 
@@ -321,7 +321,7 @@ def alignment_plots(afffn, name, Nkeep, Nuniform, R, NG, minoverlap,
     fsmap['ref'] = '.'
     
     N = len(TT)
-    OO,areas = find_overlaps(r0,r1,d0,d1,NG,outlines)
+    OO,areas = find_overlaps(outlines)
 
     summary = not perfield
 
@@ -1498,7 +1498,7 @@ def align_dataset(name, dirs, mp, alplots, NG, minoverlap,
     #   plt.xlabel('mag')
     #   ps.savefig()
 
-    overlaps,areas = find_overlaps(r0,r1,d0,d1, NG, outlines)
+    overlaps,areas = find_overlaps(outlines)
     tryoverlaps = (overlaps > minoverlap)
 
     # if alplots:

@@ -142,8 +142,8 @@ def merge(FF, matchdist=0.06):
             K = (f != 99)
             m[I[K]] += f[J[K]]
             n[I[K]] += 1
+
         merged.nmatched[I] += 1
-        
         merged = merge_tables([merged, U])
 
     for col in avgcols:
@@ -152,9 +152,9 @@ def merge(FF, matchdist=0.06):
         avg = m / n.astype(float)
         avg[n == 0] = 99.
         merged.set(col, avg)
-
         merged.delete_column(col + '_sum')
         merged.delete_column(col + '_n')
+
     return merged
 
 print('Merging...')
