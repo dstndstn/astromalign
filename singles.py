@@ -28,8 +28,6 @@ from astrometry.util.multiproc import multiproc
 
 def find_overlaps(outlines):
     '''
-    (ignored) NG: number of grid points, eg 100
-
     outlines: Outlines of the images in RA,Dec
 
     Returns:  overlaps, areas
@@ -1356,46 +1354,6 @@ def align_dataset(name, dirs, mp, alplots, NG, minoverlap,
             gstfns.append(gstfn)
         return fltfns,gstfns
 
-    def plot_all_alignments(ap, RR, Rref, round, cnames, filts, ps, overlaps, outlines,
-                            Nkeep):
-        import pylab as plt
-        # symmetrize
-        keys = list(ap.keys())
-        for i in keys:
-            AA = ap[i]
-            for j,A in AA.items():
-                if not j in ap:
-                    ap[j] = {}
-                ap[j][i] = A
-        for i in ap.keys():
-            tt = 'Round %i (R=%i mas, Ref=%i mas): %s: %s' % (round, RR, Rref, cnames[i], filts[i])
-            allA = list(ap[i].items())
-            plot_alignment_grid(allA, RR, Rref, cnames, filts, overlaps[i,:], i, outlines)
-            plt.suptitle(tt)
-            ps.savefig()
-
-        if False:
-            # Plot match indices
-            I = np.argsort([-overlaps[i,j] for j,A in allA])
-            allA = [allA[j] for j in I]
-            N = len(allA) + 1
-            cols = int(np.ceil(np.sqrt(N)))
-            rows = int(np.ceil(N / float(cols)))
-            plt.clf()
-            for k,(j,A) in enumerate(allA):
-                plt.subplot(rows, cols, k+2)
-                plt.plot(A['MIall'], A['MJall'], '.', color='0.5', alpha=0.3)
-                plt.plot(A['MI'], A['MJ'], 'r.', alpha=0.7)
-                plt.text(0, Nkeep, '%s %s' % (cnames[j], filts[j]),
-                         va='top', ha='left', color='k', fontsize=8)
-                marg = Nkeep*0.03
-                plt.axis([-marg, Nkeep, -marg, Nkeep])
-                plt.xticks([])
-                plt.yticks([])
-            plt.suptitle(tt)
-            ps.savefig()
-        return
-
     Nkeep = max([n for n,r in NkeepRads])
 
     fltfns,gstfns = getfltgsts(dirs)
@@ -1658,6 +1616,46 @@ def align_dataset(name, dirs, mp, alplots, NG, minoverlap,
     fscript.close()
 
     return T, TT
+
+def plot_all_alignments(ap, RR, Rref, round, cnames, filts, ps, overlaps, outlines,
+                        Nkeep):
+    import pylab as plt
+    # symmetrize
+    keys = list(ap.keys())
+    for i in keys:
+        AA = ap[i]
+        for j,A in AA.items():
+            if not j in ap:
+                ap[j] = {}
+            ap[j][i] = A
+    for i in ap.keys():
+        tt = 'Round %i (R=%i mas, Ref=%i mas): %s: %s' % (round, RR, Rref, cnames[i], filts[i])
+        allA = list(ap[i].items())
+        plot_alignment_grid(allA, RR, Rref, cnames, filts, overlaps[i,:], i, outlines)
+        plt.suptitle(tt)
+        ps.savefig()
+
+    if False:
+        # Plot match indices
+        I = np.argsort([-overlaps[i,j] for j,A in allA])
+        allA = [allA[j] for j in I]
+        N = len(allA) + 1
+        cols = int(np.ceil(np.sqrt(N)))
+        rows = int(np.ceil(N / float(cols)))
+        plt.clf()
+        for k,(j,A) in enumerate(allA):
+            plt.subplot(rows, cols, k+2)
+            plt.plot(A['MIall'], A['MJall'], '.', color='0.5', alpha=0.3)
+            plt.plot(A['MI'], A['MJ'], 'r.', alpha=0.7)
+            plt.text(0, Nkeep, '%s %s' % (cnames[j], filts[j]),
+                     va='top', ha='left', color='k', fontsize=8)
+            marg = Nkeep*0.03
+            plt.axis([-marg, Nkeep, -marg, Nkeep])
+            plt.xticks([])
+            plt.yticks([])
+        plt.suptitle(tt)
+        ps.savefig()
+    return
 
 
 if __name__ == '__main__':
