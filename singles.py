@@ -260,13 +260,13 @@ def alignment_plots(afffn, name, Nkeep, Nuniform, R, minoverlap,
         PlotSequence, loghist, plothist, setRadecAxes)
     
     Taff = fits_table(afffn)
-    # Trim extra spaces off of filenames (spaces added by some FITS readers)
-    Taff.flt = np.array([s.strip() for s in Taff.flt])
-    Taff.gst = np.array([s.strip() for s in Taff.gst])
     
     affs = Affine.fromTable(Taff)
 
     if tables is None:
+        # Trim extra spaces off of filenames (spaces added by some FITS readers)
+        Taff.flt = np.array([s.strip() for s in Taff.flt])
+        Taff.gst = np.array([s.strip() for s in Taff.gst])
         TT, outlines, meta = readfltgsts(Taff.flt, Taff.gst, wcsexts, Nkeep,
                                          Nuniform)
     else:
