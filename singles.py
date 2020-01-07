@@ -594,7 +594,7 @@ def alignment_plots(afffn, name, Nkeep, Nuniform, R, minoverlap,
         rows = int(np.ceil(NF / float(cols)))
         lp = {}
         for ii,f1 in enumerate(uf):
-            I = (filts == f1)
+            I = np.array([(f == f1) for f in filts])
             # i is ee[2], j is ee[3]
             # Matching ellipses involving filter f1
             EEi = [ee for ee in EE if I[ee[2]] or I[ee[3]]]
