@@ -1,4 +1,6 @@
+from __future__ import print_function
 import matplotlib
+matplotlib.use('Agg')
 matplotlib.rcParams['figure.figsize'] = (12,8)
 import pylab as plt
 from astrometry.libkd.spherematch import *
@@ -11,6 +13,8 @@ from collections import Counter
 import os
 
 ps = PlotSequence('merge')
+
+badval = 99.999
 
 TT = []
 for brick in [2,3]:
@@ -108,16 +112,24 @@ avgcols = ['avgra', 'avgdec',
     'f814w_chi', 'f814w_snr', 'f814w_sharp', 'f814w_round', 'f814w_crowd',]
 
 def addnew(F, avgcols):
+    print('addnew():', len(F))
     F.nmatched = np.ones(len(F), np.uint8)
     F.avgra = F.ra.copy()
     F.avgdec = F.dec.copy()
     for c in avgcols:
         v = F.get(c)
-        I = np.flatnonzero(v != 99)
+        I = np.flatnonzero(v != badval)
         n = np.zeros(len(F), np.uint8)
+        s = np.zeros_like(v)
+        s[I] += v[I]
         n[I] += 1
-        F.set(c + '_sum') = v[I]
-        F.set(c + '_n') = n
+        F.set(c + '_sum', s)
+        F.set(c + '_n', n)
+
+        m = F.get(c + '_sum')
+        n = F.get(c + '_n')
+        print('  ', c, len(m), len(n), m.shape, n.shape,
+              m.dtype, n.dtype)
 
 def merge(FF, matchdist=0.06):
     F = FF[0].copy()
@@ -139,18 +151,26 @@ def merge(FF, matchdist=0.06):
             m = merged.get(col + '_sum')
             n = merged.get(col + '_n')
             f = F.get(col)
-            K = (f != 99)
+            K = (f[J] != badval)
             m[I[K]] += f[J[K]]
             n[I[K]] += 1
 
         merged.nmatched[I] += 1
+
+        print('Merging:')
+        merged.about()
+        U.about()
+
         merged = merge_tables([merged, U])
+
+        print('Merged:')
+        merged.about()
 
     for col in avgcols:
         m = merged.get(col + '_sum')
-        m = merged.get(col + '_n')
+        n = merged.get(col + '_n')
         avg = m / n.astype(float)
-        avg[n == 0] = 99.
+        avg[n == 0] = badval
         merged.set(col, avg)
         merged.delete_column(col + '_sum')
         merged.delete_column(col + '_n')
