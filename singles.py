@@ -354,7 +354,6 @@ def alignment_plots(afffn, name, Nkeep, Nuniform, R, minoverlap,
         for i,Ti in enumerate(TT):
             AA = []
             IJ = []
-            iname = os.path.basename(Taff.gst[i]).replace('.gst.fits', '')
             args = []
             for j,Tj in enumerate(TT):
                 if i == j:
@@ -388,6 +387,7 @@ def alignment_plots(afffn, name, Nkeep, Nuniform, R, minoverlap,
             if summary:
                 continue
 
+            iname = os.path.basename(Taff.gst[i]).replace('.gst.fits', '')
             N = len(AA)
             cols = int(np.ceil(np.sqrt(len(AA))))
             rows = int(np.ceil(N / float(cols)))
