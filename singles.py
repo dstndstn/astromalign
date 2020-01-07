@@ -600,7 +600,7 @@ def alignment_plots(afffn, name, Nkeep, Nuniform, R, minoverlap,
             EEi = [ee for ee in EE if I[ee[2]] or I[ee[3]]]
             plt.subplot(rows, cols, ii+1)
             for f2 in uf:
-                J = (filts == f2)
+                J = np.array([(f == f2) for f in filts])
                 for x,y,i,j,n,esize in EEi:
                     # Find matching ellipses between filters f1 and f2
                     if not ((J[j] and I[i]) or (J[i] and I[j])):
