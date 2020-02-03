@@ -75,12 +75,39 @@ def to_fits():
         print(len(ds), 'with F814W < 24')
     
         mag = ds.evaluate(ds['f814w_vega'])
-    
-        I = np.argsort(mag)
-        I = I[:100000]
-        print('100k-th star: mag', mag[I[-1]])
-        ds = ds.take(I)
-    
+        xx = ds.evaluate(ds['x'])
+        yy = ds.evaluate(ds['y'])
+
+        xlo = xx.min()
+        xhi = xx.max()
+        ylo = yy.min()
+        yhi = yy.max()
+        nx = int(np.round((xhi - xlo) / 1000.)) + 1
+        xbins = np.linspace(xlo, xhi, nx)
+        ny = int(np.round((yhi - ylo) / 1000.)) + 1
+        ybins = np.linspace(ylo, yhi, ny)
+        print('x bins', xbins)
+        print('y bins', ybins)
+        xbin = np.digitize(xx, xbins)
+        ybin = np.digitize(yy, ybins)
+        xybin = ybin * nx + xbin
+        nbins = nx * ny
+        print('N bins:', nbins)
+        nperbin = int(np.ceil(100000. / nbins))
+        II = []
+        for ibin in range(nbins):
+            I = np.flatnonzero(xybin == ibin)
+            if len(I) == 0:
+                continue
+            Ibright = np.argsort(mag[I])[:nperbin]
+            II.append(I[Ibright])
+        II = np.hstack(II)
+
+        #I = np.argsort(mag)
+        #I = I[:100000]
+        #print('100k-th star: mag', mag[I[-1]])
+        ds = ds.take(II)
+
         T = fits_table()
         for col in ['ra','dec','x', 'y', 'index']:
             T.set(col, ds.evaluate(ds[col]))
@@ -99,7 +126,10 @@ def to_fits():
 
 
 if __name__ == '__main__':
+    import sys
+
     #to_fits()
+    #sys.exit(0)
 
     from astrometry.libkd.spherematch import tree_build_radec, trees_match
     from astrometry.libkd.spherematch import match_radec
@@ -112,8 +142,6 @@ if __name__ == '__main__':
 
     fns = glob('M31-*-bright.fits')
     fns.sort()
-
-    #fns = fns[:10]
 
     keepfns = []
     if True:
@@ -162,6 +190,8 @@ if __name__ == '__main__':
     print('Building trees...')
     kds = [tree_build_radec(T.ra, T.dec) for T in TT]
 
+    for T,name in zip(TT, names):
+        T.name = np.array([name]*len(T))
 
     allra  = np.hstack([T.ra  for T in TT])
     alldec = np.hstack([T.dec for T in TT])
@@ -220,8 +250,8 @@ if __name__ == '__main__':
 
     aligns = {}
 
-    for i in []:
-    #for i in range(len(kds)):
+    #for i in []:
+    for i in range(len(kds)):
         for j in range(i+1, len(kds)):
             print('Matching trees', i, 'and', j)
 
@@ -291,12 +321,15 @@ if __name__ == '__main__':
     from singles import plot_all_alignments
 
     #Rads = [0.25, 0.1]
-    Rads = [0.2, 0.05]
+    Rads = [0.2, 0.050, 0.020]
     #Rads = [0.1]
     affs = None
     # this is the reference point around which rotations take place, NOT reference catalog stars.
     refrd = None
     for roundi, R in enumerate(Rads):
+
+        if roundi > 0:
+            refrad = 0.050
 
         TT1 = TT
 
@@ -403,7 +436,8 @@ if __name__ == '__main__':
     T.ra = allra
     T.dec = alldec
     for col in ['f814w_vega', 'f475w_vega', 'f336w_vega',
-                'f275w_vega', 'f110w_vega', 'f160w_vega']:
+                'f275w_vega', 'f110w_vega', 'f160w_vega',
+                'name']:
         T.set(col, np.hstack([t.get(col) for t in TT]))
     T.writeto('aligned.fits')
 
