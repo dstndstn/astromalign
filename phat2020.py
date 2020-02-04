@@ -14,6 +14,74 @@ from astrometry.util.fits import fits_table
 os.environ['NUMEXPR_MAX_THREADS'] = '8'
 
 
+def apply_alignments():
+    from astrom_common import Affine
+    T = fits_table('affines.fits')
+    affs = Affine.fromTable(T)
+    print('Read affines:', affs)
+
+    ibright = dict([(fn.strip(),i) for fn in affs.filenames])
+
+    corners = {}
+    for line in open('corners.txt').readlines():
+        line = line.strip()
+        words = line.split()
+        ras = np.array([float(words[i]) for i in [1,3,5,7]])
+        decs = np.array([float(words[i]) for i in [2,4,6,8]])
+        corners[words[0]] = (ras,decs)
+    from astrometry.util.miscutils import point_in_poly
+
+    fns = (glob('data/M31-*ST/proc_default/M31-*ST.phot.hdf5') +
+           glob('data/M31-*ST/M31-*ST.phot.hdf5'))
+    fns.sort()
+    print('Files:', fns)
+
+    veto_polys = []
+
+    for photfile in fns:
+        basename = os.path.basename(photfile)
+        basename = basename.replace('.phot.hdf5', '')
+        print('Base name:', basename)
+
+        brightfn = basename + '-bright.fits'
+        ii = ibright[brightfn]
+        aff = affs[ii]
+
+        print('Reading', photfile)
+        df = pd.read_hdf(photfile, key='data')
+        ds = vaex.from_pandas(df)
+        print(len(ds), 'rows')
+        ra = ds.evaluate(ds['ra'])
+        dec = ds.evaluate(ds['dec'])
+        ra,dec = aff.apply(ra, dec)
+        
+        corner = corners[basename]
+        Tleft = fits_table()
+        Tleft.ra = ra
+        Tleft.dec = dec
+        Tleft.index = np.arange(len(Tleft))
+        ras,decs = corner
+        poly = np.vstack((ras, decs)).T
+        inside = point_in_poly(Tleft.ra, Tleft.dec, poly)
+        print(np.sum(inside), 'of', len(Tleft), 'inside corners of this half-brick')
+
+        inside_veto = np.zeros(len(Tleft), bool)
+        for vp in veto_polys:
+            inveto = point_in_poly(Tleft.ra, Tleft.dec, vp)
+            inside_veto[inveto] = True
+        print(np.sum(inside_veto), 'stars are inside the corners of previous half-bricks')
+        print('inside:', type(inside))
+        inside[inveto] = False
+        print(np.sum(inside), 'stars are uniquely in this half-brick')
+        
+        veto_polys.append(poly)
+        
+        outfn = 'out-%s.hdf5' % basename
+        df[inside].to_hdf5(outfn, key='data', mode='w',
+                           format='table', complevel=9, complib='zlib')
+        print('Wrote', outfn)
+    
+
 def to_fits():
     fns = (glob('data/M31-*ST/proc_default/M31-*ST.phot.hdf5') +
            glob('data/M31-*ST/M31-*ST.phot.hdf5'))
@@ -127,10 +195,10 @@ def to_fits():
 
 if __name__ == '__main__':
     import sys
-
     #to_fits()
-    #sys.exit(0)
-
+    apply_alignments()
+    sys.exit(0)
+    
     from astrometry.libkd.spherematch import tree_build_radec, trees_match
     from astrometry.libkd.spherematch import match_radec
     from astrometry.util.plotutils import *
