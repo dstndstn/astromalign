@@ -10,9 +10,55 @@ from glob import glob
 from astrom_common import Alignment, plotalignment
 
 from astrometry.util.fits import fits_table
+from astrometry.util.plotutils import *
+from astrometry.libkd.spherematch import match_radec
 
 os.environ['NUMEXPR_MAX_THREADS'] = '8'
 
+def check_results():
+    fns = glob('out-M31-B*.hdf5')
+    rr = []
+    dd = []
+    for fn in fns:
+        df = pd.read_hdf(fn, key='data')
+        ds = vaex.from_pandas(df)
+        print(len(ds), 'rows')
+        ra = ds.evaluate(ds['ra'])
+        dec = ds.evaluate(ds['dec'])
+        rr.append(ra)
+        dd.append(dec)
+    rr = np.hstack(rr)
+    dd = np.hstack(dd)
+    print('Total of', len(rr), 'stars')
+
+    T = fits_table()
+    T.ra = rr
+    T.dec = dd
+    T.writeto('all-rd.fits')
+
+    plothist(rr, dd, 500)
+    plt.xlabel('RA (deg)')
+    plt.ylabel('Dec (deg)')
+    plt.savefig('all-radec.png')
+
+    I,J,d = match_radec(rr, dd, rr, dd, 0.2/3600, notself=True)
+    plt.clf()
+    plt.hist(d * 3600. * 1000., bins=50)
+    plt.xlabel('Distance between stars (milli-arcsec)')
+    plt.savefig('all-dists.png')
+
+def check_results_2():
+    T = fits_table('all-rd.fits')
+    I,J,d = match_radec(T.ra, T.dec, T.ra, T.dec, 0.2/3600, notself=True)
+    plt.clf()
+    plt.hist(d * 3600. * 1000., bins=50)
+    plt.xlabel('Distance between stars (milli-arcsec)')
+    plt.savefig('all-dists.png')
+
+    plt.clf()
+    plt.hist(d * 3600. * 1000., bins=50, log=True)
+    plt.xlabel('Distance between stars (milli-arcsec)')
+    plt.savefig('all-dists-log.png')
 
 def apply_alignments():
     from astrom_common import Affine
@@ -20,7 +66,7 @@ def apply_alignments():
     affs = Affine.fromTable(T)
     print('Read affines:', affs)
 
-    ibright = dict([(fn.strip(),i) for fn in affs.filenames])
+    ibright = dict([(fn.strip(),i) for i,fn in enumerate(T.filenames)])
 
     corners = {}
     for line in open('corners.txt').readlines():
@@ -43,6 +89,16 @@ def apply_alignments():
         basename = basename.replace('.phot.hdf5', '')
         print('Base name:', basename)
 
+        corner = corners[basename]
+        ras,decs = corner
+        poly = np.vstack((ras, decs)).T
+
+        outfn2 = 'cut-%s.hdf5' % basename
+        if os.path.exists(outfn2):
+            print('File', outfn2, 'exists; skipping')
+            veto_polys.append(poly)
+            continue
+
         brightfn = basename + '-bright.fits'
         ii = ibright[brightfn]
         aff = affs[ii]
@@ -55,13 +111,10 @@ def apply_alignments():
         dec = ds.evaluate(ds['dec'])
         ra,dec = aff.apply(ra, dec)
         
-        corner = corners[basename]
         Tleft = fits_table()
         Tleft.ra = ra
         Tleft.dec = dec
         Tleft.index = np.arange(len(Tleft))
-        ras,decs = corner
-        poly = np.vstack((ras, decs)).T
         inside = point_in_poly(Tleft.ra, Tleft.dec, poly)
         print(np.sum(inside), 'of', len(Tleft), 'inside corners of this half-brick')
 
@@ -70,16 +123,22 @@ def apply_alignments():
             inveto = point_in_poly(Tleft.ra, Tleft.dec, vp)
             inside_veto[inveto] = True
         print(np.sum(inside_veto), 'stars are inside the corners of previous half-bricks')
-        print('inside:', type(inside))
-        inside[inveto] = False
+        print('inside:', type(inside), inside.dtype)
+        inside[inside_veto] = False
         print(np.sum(inside), 'stars are uniquely in this half-brick')
         
         veto_polys.append(poly)
         
         outfn = 'out-%s.hdf5' % basename
-        df[inside].to_hdf5(outfn, key='data', mode='w',
-                           format='table', complevel=9, complib='zlib')
+        df[inside].to_hdf(outfn, key='data', mode='w',
+                          format='table', complevel=9, complib='zlib')
         print('Wrote', outfn)
+
+        outfn = 'cut-%s.hdf5' % basename
+        df[np.logical_not(inside)].to_hdf(outfn, key='data', mode='w',
+                          format='table', complevel=9, complib='zlib')
+        print('Wrote', outfn)
+
     
 
 def to_fits():
@@ -196,7 +255,8 @@ def to_fits():
 if __name__ == '__main__':
     import sys
     #to_fits()
-    apply_alignments()
+    #apply_alignments()
+    check_results_2()
     sys.exit(0)
     
     from astrometry.libkd.spherematch import tree_build_radec, trees_match
