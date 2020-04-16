@@ -77,9 +77,11 @@ def apply_alignments():
         corners[words[0]] = (ras,decs)
     from astrometry.util.miscutils import point_in_poly
 
-    fns = (glob('data/M31-*ST/proc_default/M31-*ST.phot.hdf5') +
-           glob('data/M31-*ST/M31-*ST.phot.hdf5'))
-    fns.sort()
+    fns1 = glob('data/M31-*ST/proc_default/M31-*ST.phot.hdf5')
+    fns2 = glob('data/M31-*ST/M31-*ST.phot.hdf5')
+    fns1.sort()
+    fns2.sort()
+    fns = fns1 + fns2
     print('Files:', fns)
 
     veto_polys = []
@@ -142,16 +144,21 @@ def apply_alignments():
     
 
 def to_fits():
-    fns = (glob('data/M31-*ST/proc_default/M31-*ST.phot.hdf5') +
-           glob('data/M31-*ST/M31-*ST.phot.hdf5'))
-    fns.sort()
+    # NOTE -- there *are* duplicates in these sets.  (B23).
+    # Take the "proc_default" ones first, if both exist.
+    fns1 = glob('data/M31-*ST/proc_default/M31-*ST.phot.hdf5')
+    fns1.sort()
+    fns2 = glob('data/M31-*ST/M31-*ST.phot.hdf5')
+    fns2.sort()
+    fns = fns1 + fns2
     print('Files:', fns)
 
     plt.clf()
 
     for photfile in fns:
         #photfile = 'data/M31-B23-WEST/M31-B23-WEST.phot.hdf5'
-    
+        print()
+        print(photfile)
         basename = os.path.basename(photfile)
         basename = basename.replace('.phot.hdf5', '')
         print('Base name:', basename)
@@ -159,8 +166,14 @@ def to_fits():
         outfn = basename + '-bright.fits'
         if os.path.exists(outfn):
             print('Exists:', outfn)
-            continue
-    
+
+            st_in  = os.stat(photfile)
+            st_out = os.stat(outfn)
+            print('Timestamps: in', st_in.st_mtime, 'out', st_out.st_mtime)
+            if st_out.st_mtime > st_in.st_mtime:
+                continue
+            print('Input file is newer!')
+
         words = basename.split('-')
         assert(len(words) == 3)
         brick = words[1]
@@ -252,16 +265,10 @@ def to_fits():
     plt.savefig('mags.png')
 
 
-if __name__ == '__main__':
-    import sys
-    #to_fits()
-    #apply_alignments()
-    check_results_2()
-    sys.exit(0)
-    
+def find_alignments():
     from astrometry.libkd.spherematch import tree_build_radec, trees_match
     from astrometry.libkd.spherematch import match_radec
-    from astrometry.util.plotutils import *
+    from astrometry.util.plotutils import plothist
     from astrometry.util.util import Tan
     import fitsio
 
@@ -290,6 +297,8 @@ if __name__ == '__main__':
             if len(ff) < 1:
                 print('xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx')
                 continue
+            if len(ff) > 1:
+                print('Keeping', ff[0])
             keepfns.append(fn)
             fn = ff[0]
             wcs = Tan(fn)
@@ -593,3 +602,11 @@ if __name__ == '__main__':
         alignment_plots(afffn, dataset, Nkeep, 0, R, minoverlap, perfield, nocache, mp, 0,
                         tables=(TT, outlines, meta), lexsort=False)
 
+
+if __name__ == '__main__':
+    import sys
+    #to_fits()
+    #find_alignments()
+    apply_alignments()
+    #check_results_2()
+    sys.exit(0)
