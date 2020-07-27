@@ -5,6 +5,7 @@ matplotlib.rcParams['figure.figsize'] = (12,8)
 import pylab as plt
 from astrometry.libkd.spherematch import *
 from astrometry.util.fits import *
+from astrometry.util.multiproc import multiproc
 import numpy as np
 from astrometry.util.starutil_numpy import *
 from astrometry.util.plotutils import *
@@ -17,6 +18,7 @@ ps = PlotSequence('merge')
 badval = 99.999
 
 TT = []
+BFC = []
 for brick in [2,3]:
     for field in range(1,18+1):
         for chip in [1,2]:
@@ -25,8 +27,123 @@ for brick in [2,3]:
             T = fits_table(fn)
             print(len(T), 'from', fn)
             TT.append(T)
+            BFC.append((brick, field, chip))
+
+gaia = fits_table('gaia.fits')
+print('Gaia:', len(gaia))
+
+
+
+for i,(T,(brick,field,chip)) in enumerate(zip(TT, BFC)):
+    print('Brick', brick, 'field', field, 'chip', chip)
+    I,J,d = match_radec(gaia.ra, gaia.dec, T.ra, T.dec, 0.1/3600., nearest=True)
+    print('Matched', len(I), 'Gaia')
+
+    cosdec = np.cos(np.deg2rad(30.))
+    dra = (gaia.ra[I]-T.ra[J])*cosdec * 3600.*1000.
+    ddec = (gaia.dec[I]-T.dec[J]) * 3600.*1000.
+
+    plt.clf()
+    plothist(dra, ddec, range=((-100,100),(-100,100)))
+    plt.xlabel('dRA (mas)')
+    plt.ylabel('dDec (mas)');
+    plt.title('Brick %i, field %i, chip %i: to Gaia' % (brick, field, chip))
+    ps.savefig()
+
+    ramin = T.ra.min()
+    ramax = T.ra.max()
+    decmin = T.dec.min()
+    decmax = T.dec.max()
+
+    plt.clf()
+
+    plt.subplot(2,2,1)
+    plothist(gaia.ra[I], dra, range=((ramin,ramax),(-100,100)),
+             doclf=False)
+    plt.xlabel('RA (deg)')
+    plt.ylabel('dRA (mas)')
+
+    plt.subplot(2,2,2)
+    plothist(gaia.ra[I], ddec, range=((ramin,ramax),(-100,100)),
+             doclf=False)
+    plt.xlabel('RA (deg)')
+    plt.ylabel('dDec (mas)')
+
+    plt.subplot(2,2,3)
+    plothist(gaia.dec[I], dra, range=((decmin,decmax),(-100,100)),
+             doclf=False)
+    plt.xlabel('Dec (deg)')
+    plt.ylabel('dRA (mas)')
+
+    plt.subplot(2,2,4)
+    plothist(gaia.dec[I], ddec, range=((decmin,decmax),(-100,100)),
+             doclf=False)
+    plt.xlabel('Dec (deg)')
+    plt.ylabel('dDec (mas)')
+
+    plt.suptitle('Brick %i, field %i, chip %i: to Gaia' % (brick, field, chip))
+    ps.savefig()
+
+    if i == 4:
+        break
+
+
 Tall = merge_tables(TT)
 print('Total', len(Tall))
+
+print('Matching to Gaia...')
+I,J,d = match_radec(gaia.ra, gaia.dec, Tall.ra, Tall.dec, 0.1/3600., nearest=True)
+print('Matched', len(I))
+
+cosdec = np.cos(np.deg2rad(30.))
+dra = (gaia.ra[I]-Tall.ra[J])*cosdec * 3600.*1000.
+ddec = (gaia.dec[I]-Tall.dec[J]) * 3600.*1000.
+
+plt.clf()
+plothist(dra, ddec, range=((-100,100),(-100,100)))
+plt.xlabel('dRA (mas)')
+plt.ylabel('dDec (mas)');
+plt.title('Before alignment: to Gaia')
+ps.savefig()
+
+plt.clf()
+plt.hist(d*3600.*1000., bins=50, range=(0,100))
+plt.xlabel('Match distance (mas)')
+plt.title('Before alignment: to Gaia')
+plt.xlim(0,100)
+ps.savefig()
+
+
+ramin = Tall.ra.min()
+ramax = Tall.ra.max()
+decmin = Tall.dec.min()
+decmax = Tall.dec.max()
+
+plt.clf()
+plt.subplot(2,2,1)
+plothist(gaia.ra[I], dra, range=((ramin,ramax),(-100,100)),
+         doclf=False)
+plt.xlabel('RA (deg)')
+plt.ylabel('dRA (mas)')
+plt.subplot(2,2,2)
+plothist(gaia.ra[I], ddec, range=((ramin,ramax),(-100,100)),
+         doclf=False)
+plt.xlabel('RA (deg)')
+plt.ylabel('dDec (mas)')
+plt.subplot(2,2,3)
+plothist(gaia.dec[I], dra, range=((decmin,decmax),(-100,100)),
+         doclf=False)
+plt.xlabel('Dec (deg)')
+plt.ylabel('dRA (mas)')
+plt.subplot(2,2,4)
+plothist(gaia.dec[I], ddec, range=((decmin,decmax),(-100,100)),
+         doclf=False)
+plt.xlabel('Dec (deg)')
+plt.ylabel('dDec (mas)')
+plt.suptitle('Before alignment: to Gaia')
+ps.savefig()
+
+
 
 print('Matching...')
 I,J,d = match_radec(Tall.ra, Tall.dec, Tall.ra, Tall.dec, 0.1/3600., notself=True)
@@ -62,15 +179,91 @@ plt.title('Before alignment: all bricks')
 plt.xlim(0,100)
 ps.savefig()
 
+plt.clf()
+m = Tall.f814w_vega[I]
+plt.hist(m[m<99], bins=50)
+plt.xlabel('F814W mag')
+ps.savefig()
+
+
 del Tall
 
 from astromalign import astrom_intra
 
+print('Cutting to bright stars...')
+Tbright = []
+for T in TT:
+    b = T[T.f814w_vega < 24]
+    print(len(b), 'of', len(T), 'bright')
+    Tbright.append(b)
+
 print('Aligning...')
-align = astrom_intra.intrabrickshift(TT, matchradius=0.1)
+#mp = multiproc(8)
+#align = astrom_intra.intrabrickshift(TT, matchradius=0.1,
+align = astrom_intra.intrabrickshift(Tbright, matchradius=0.1,
+                                     ref=gaia, refrad=0.1,
+                                     do_affine=True)
+                                     #do_rotation=True)
 
 print('Applying alignment...')
 align.applyTo(TT)
+
+
+for i,(T,(brick,field,chip)) in enumerate(zip(TT, BFC)):
+    print('Brick', brick, 'field', field, 'chip', chip)
+    I,J,d = match_radec(gaia.ra, gaia.dec, T.ra, T.dec, 0.1/3600., nearest=True)
+    print('Matched', len(I), 'Gaia')
+
+    cosdec = np.cos(np.deg2rad(30.))
+    dra = (gaia.ra[I]-T.ra[J])*cosdec * 3600.*1000.
+    ddec = (gaia.dec[I]-T.dec[J]) * 3600.*1000.
+
+    plt.clf()
+    plothist(dra, ddec, range=((-100,100),(-100,100)))
+    plt.xlabel('dRA (mas)')
+    plt.ylabel('dDec (mas)');
+    plt.title('Brick %i, field %i, chip %i: to Gaia' % (brick, field, chip))
+    ps.savefig()
+
+    ramin = T.ra.min()
+    ramax = T.ra.max()
+    decmin = T.dec.min()
+    decmax = T.dec.max()
+
+    plt.clf()
+
+    plt.subplot(2,2,1)
+    plothist(gaia.ra[I], dra, range=((ramin,ramax),(-100,100)),
+             doclf=False)
+    plt.xlabel('RA (deg)')
+    plt.ylabel('dRA (mas)')
+
+    plt.subplot(2,2,2)
+    plothist(gaia.ra[I], ddec, range=((ramin,ramax),(-100,100)),
+             doclf=False)
+    plt.xlabel('RA (deg)')
+    plt.ylabel('dDec (mas)')
+
+    plt.subplot(2,2,3)
+    plothist(gaia.dec[I], dra, range=((decmin,decmax),(-100,100)),
+             doclf=False)
+    plt.xlabel('Dec (deg)')
+    plt.ylabel('dRA (mas)')
+
+    plt.subplot(2,2,4)
+    plothist(gaia.dec[I], ddec, range=((decmin,decmax),(-100,100)),
+             doclf=False)
+    plt.xlabel('Dec (deg)')
+    plt.ylabel('dDec (mas)')
+
+    plt.suptitle('Brick %i, field %i, chip %i: to Gaia' % (brick, field, chip))
+    ps.savefig()
+
+    if i == 4:
+        break
+
+
+
 print('Merging...')
 Tall2 = merge_tables(TT)
 
@@ -96,6 +289,59 @@ plt.xlabel('Match distance (mas)')
 plt.title('After alignment')
 plt.xlim(0,100)
 ps.savefig()
+
+
+print('Matching to Gaia...')
+I,J,d = match_radec(gaia.ra, gaia.dec, Tall2.ra, Tall2.dec, 0.1/3600.,
+                    nearest=True)
+print('Matched', len(I))
+
+cosdec = np.cos(np.deg2rad(30.))
+dra = (gaia.ra[I]-Tall2.ra[J])*cosdec * 3600.*1000.
+ddec = (gaia.dec[I]-Tall2.dec[J]) * 3600.*1000.
+plt.clf()
+plothist(dra, ddec, range=((-100,100),(-100,100)))
+plt.xlabel('dRA (mas)')
+plt.ylabel('dDec (mas)');
+plt.title('After alignment: to Gaia')
+ps.savefig()
+
+plt.clf()
+plt.hist(d*3600.*1000., bins=50, range=(0,100))
+plt.xlabel('Match distance (mas)')
+plt.title('After alignment: to Gaia')
+plt.xlim(0,100)
+ps.savefig()
+
+ramin = Tall2.ra.min()
+ramax = Tall2.ra.max()
+decmin = Tall2.dec.min()
+decmax = Tall2.dec.max()
+
+plt.clf()
+plt.subplot(2,2,1)
+plothist(gaia.ra[I], dra, range=((ramin,ramax),(-100,100)),
+         doclf=False)
+plt.xlabel('RA (deg)')
+plt.ylabel('dRA (mas)')
+plt.subplot(2,2,2)
+plothist(gaia.ra[I], ddec, range=((ramin,ramax),(-100,100)),
+         doclf=False)
+plt.xlabel('RA (deg)')
+plt.ylabel('dDec (mas)')
+plt.subplot(2,2,3)
+plothist(gaia.dec[I], dra, range=((decmin,decmax),(-100,100)),
+         doclf=False)
+plt.xlabel('Dec (deg)')
+plt.ylabel('dRA (mas)')
+plt.subplot(2,2,4)
+plothist(gaia.dec[I], ddec, range=((decmin,decmax),(-100,100)),
+         doclf=False)
+plt.xlabel('Dec (deg)')
+plt.ylabel('dDec (mas)')
+plt.suptitle('After alignment: to Gaia')
+ps.savefig()
+
 
 avgcols = ['avgra', 'avgdec',
     'f110w_rate', 'f110w_raterr', 'f110w_vega', 'f110w_std', 'f110w_err',
