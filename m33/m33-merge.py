@@ -400,6 +400,7 @@ def merge(FF, matchdist=0.06):
             K = (f[J] != badval)
             m[I[K]] += f[J[K]]
             n[I[K]] += 1
+
         merged.nmatched[I] += 1
 
         print('Merging:')

@@ -23,13 +23,11 @@ from astrometry.util.file import *
 from astrometry.util.fits import *
 from astrometry.util.util import *
 from astrometry.util.miscutils import *
-from astrometry.blind.plotstuff import *
+#from astrometry.blind.plotstuff import *
 from astrometry.util.multiproc import multiproc
 
-def find_overlaps(r0,r1,d0,d1,NG,outlines):
+def find_overlaps(outlines):
     '''
-    (ignored) NG: number of grid points, eg 100
-
     outlines: Outlines of the images in RA,Dec
 
     Returns:  overlaps, areas
@@ -252,8 +250,9 @@ def readfltgsts(fltfns, gstfns, wcsexts, Nkeep, Nuniform):
             )
 
 
-def alignment_plots(afffn, name, Nkeep, Nuniform, R, NG, minoverlap,
+def alignment_plots(afffn, name, Nkeep, Nuniform, R, minoverlap,
                     perfield, nocache, mp, wcsexts,
+                    tables=None,
                     lexsort=True, reffn=None, refrad=0.5,
                     cutfunction=None):
     import pylab as plt
@@ -261,14 +260,17 @@ def alignment_plots(afffn, name, Nkeep, Nuniform, R, NG, minoverlap,
         PlotSequence, loghist, plothist, setRadecAxes)
     
     Taff = fits_table(afffn)
-    # Trim extra spaces off of filenames (spaces added by some FITS readers)
-    Taff.flt = np.array([s.strip() for s in Taff.flt])
-    Taff.gst = np.array([s.strip() for s in Taff.gst])
     
     affs = Affine.fromTable(Taff)
 
-    TT, outlines, meta = readfltgsts(Taff.flt, Taff.gst, wcsexts, Nkeep,
-                                     Nuniform)
+    if tables is None:
+        # Trim extra spaces off of filenames (spaces added by some FITS readers)
+        Taff.flt = np.array([s.strip() for s in Taff.flt])
+        Taff.gst = np.array([s.strip() for s in Taff.gst])
+        TT, outlines, meta = readfltgsts(Taff.flt, Taff.gst, wcsexts, Nkeep,
+                                         Nuniform)
+    else:
+        TT, outlines, meta = tables
 
     if cutfunction is not None:
         TT,outlines,meta = cutfunction(TT, outlines, meta)
@@ -321,7 +323,7 @@ def alignment_plots(afffn, name, Nkeep, Nuniform, R, NG, minoverlap,
     fsmap['ref'] = '.'
     
     N = len(TT)
-    OO,areas = find_overlaps(r0,r1,d0,d1,NG,outlines)
+    OO,areas = find_overlaps(outlines)
 
     summary = not perfield
 
@@ -352,7 +354,6 @@ def alignment_plots(afffn, name, Nkeep, Nuniform, R, NG, minoverlap,
         for i,Ti in enumerate(TT):
             AA = []
             IJ = []
-            iname = os.path.basename(Taff.gst[i]).replace('.gst.fits', '')
             args = []
             for j,Tj in enumerate(TT):
                 if i == j:
@@ -386,6 +387,7 @@ def alignment_plots(afffn, name, Nkeep, Nuniform, R, NG, minoverlap,
             if summary:
                 continue
 
+            iname = os.path.basename(Taff.gst[i]).replace('.gst.fits', '')
             N = len(AA)
             cols = int(np.ceil(np.sqrt(len(AA))))
             rows = int(np.ceil(N / float(cols)))
@@ -592,13 +594,13 @@ def alignment_plots(afffn, name, Nkeep, Nuniform, R, NG, minoverlap,
         rows = int(np.ceil(NF / float(cols)))
         lp = {}
         for ii,f1 in enumerate(uf):
-            I = (filts == f1)
+            I = np.array([(f == f1) for f in filts])
             # i is ee[2], j is ee[3]
             # Matching ellipses involving filter f1
             EEi = [ee for ee in EE if I[ee[2]] or I[ee[3]]]
             plt.subplot(rows, cols, ii+1)
             for f2 in uf:
-                J = (filts == f2)
+                J = np.array([(f == f2) for f in filts])
                 for x,y,i,j,n,esize in EEi:
                     # Find matching ellipses between filters f1 and f2
                     if not ((J[j] and I[i]) or (J[i] and I[j])):
@@ -1356,46 +1358,6 @@ def align_dataset(name, dirs, mp, alplots, NG, minoverlap,
             gstfns.append(gstfn)
         return fltfns,gstfns
 
-    def plot_all_alignments(ap, RR, Rref, round, cnames, filts, ps, overlaps, outlines,
-                            Nkeep):
-        import pylab as plt
-        # symmetrize
-        keys = list(ap.keys())
-        for i in keys:
-            AA = ap[i]
-            for j,A in AA.items():
-                if not j in ap:
-                    ap[j] = {}
-                ap[j][i] = A
-        for i in ap.keys():
-            tt = 'Round %i (R=%i mas, Ref=%i mas): %s: %s' % (round, RR, Rref, cnames[i], filts[i])
-            allA = list(ap[i].items())
-            plot_alignment_grid(allA, RR, Rref, cnames, filts, overlaps[i,:], i, outlines)
-            plt.suptitle(tt)
-            ps.savefig()
-
-        if False:
-            # Plot match indices
-            I = np.argsort([-overlaps[i,j] for j,A in allA])
-            allA = [allA[j] for j in I]
-            N = len(allA) + 1
-            cols = int(np.ceil(np.sqrt(N)))
-            rows = int(np.ceil(N / float(cols)))
-            plt.clf()
-            for k,(j,A) in enumerate(allA):
-                plt.subplot(rows, cols, k+2)
-                plt.plot(A['MIall'], A['MJall'], '.', color='0.5', alpha=0.3)
-                plt.plot(A['MI'], A['MJ'], 'r.', alpha=0.7)
-                plt.text(0, Nkeep, '%s %s' % (cnames[j], filts[j]),
-                         va='top', ha='left', color='k', fontsize=8)
-                marg = Nkeep*0.03
-                plt.axis([-marg, Nkeep, -marg, Nkeep])
-                plt.xticks([])
-                plt.yticks([])
-            plt.suptitle(tt)
-            ps.savefig()
-        return
-
     Nkeep = max([n for n,r in NkeepRads])
 
     fltfns,gstfns = getfltgsts(dirs)
@@ -1498,7 +1460,7 @@ def align_dataset(name, dirs, mp, alplots, NG, minoverlap,
     #   plt.xlabel('mag')
     #   ps.savefig()
 
-    overlaps,areas = find_overlaps(r0,r1,d0,d1, NG, outlines)
+    overlaps,areas = find_overlaps(outlines)
     tryoverlaps = (overlaps > minoverlap)
 
     # if alplots:
@@ -1659,6 +1621,46 @@ def align_dataset(name, dirs, mp, alplots, NG, minoverlap,
 
     return T, TT
 
+def plot_all_alignments(ap, RR, Rref, round, cnames, filts, ps, overlaps, outlines,
+                        Nkeep):
+    import pylab as plt
+    # symmetrize
+    keys = list(ap.keys())
+    for i in keys:
+        AA = ap[i]
+        for j,A in AA.items():
+            if not j in ap:
+                ap[j] = {}
+            ap[j][i] = A
+    for i in ap.keys():
+        tt = 'Round %i (R=%i mas, Ref=%i mas): %s: %s' % (round, RR, Rref, cnames[i], filts[i])
+        allA = list(ap[i].items())
+        plot_alignment_grid(allA, RR, Rref, cnames, filts, overlaps[i,:], i, outlines)
+        plt.suptitle(tt)
+        ps.savefig()
+
+    if False:
+        # Plot match indices
+        I = np.argsort([-overlaps[i,j] for j,A in allA])
+        allA = [allA[j] for j in I]
+        N = len(allA) + 1
+        cols = int(np.ceil(np.sqrt(N)))
+        rows = int(np.ceil(N / float(cols)))
+        plt.clf()
+        for k,(j,A) in enumerate(allA):
+            plt.subplot(rows, cols, k+2)
+            plt.plot(A['MIall'], A['MJall'], '.', color='0.5', alpha=0.3)
+            plt.plot(A['MI'], A['MJ'], 'r.', alpha=0.7)
+            plt.text(0, Nkeep, '%s %s' % (cnames[j], filts[j]),
+                     va='top', ha='left', color='k', fontsize=8)
+            marg = Nkeep*0.03
+            plt.axis([-marg, Nkeep, -marg, Nkeep])
+            plt.xticks([])
+            plt.yticks([])
+        plt.suptitle(tt)
+        ps.savefig()
+    return
+
 
 if __name__ == '__main__':
     import pylab as plt
@@ -1759,7 +1761,7 @@ if __name__ == '__main__':
                       st=opt.st)
 
     if opt.plots:
-        alignment_plots(afffn, name, opt.nkeep, opt.uniform, opt.rad, opt.ng,
+        alignment_plots(afffn, name, opt.nkeep, opt.uniform, opt.rad,
                         opt.minoverlap, opt.fieldplots, opt.nocache, mp,
                         opt.wcsexts,
                         reffn=opt.refcat)
