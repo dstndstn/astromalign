@@ -15,16 +15,19 @@ from astrometry.libkd.spherematch import match_radec
 
 os.environ['NUMEXPR_MAX_THREADS'] = '8'
 
-def check_results():
-    fns = glob('out-M31-B*.hdf5')
+def check_results(fns, tag):
+
+    def get_field(ds, col):
+        return ds.evaluate(ds[col.upper()])
+
     rr = []
     dd = []
     for fn in fns:
         df = pd.read_hdf(fn, key='data')
         ds = vaex.from_pandas(df)
         print(len(ds), 'rows')
-        ra = ds.evaluate(ds['ra'])
-        dec = ds.evaluate(ds['dec'])
+        ra = get_field(ds, 'ra')
+        dec = get_field(ds, 'dec')
         rr.append(ra)
         dd.append(dec)
     rr = np.hstack(rr)
@@ -34,42 +37,42 @@ def check_results():
     T = fits_table()
     T.ra = rr
     T.dec = dd
-    T.writeto('all-rd.fits')
+    T.writeto('all-rd-%s.fits' % tag)
 
     plothist(rr, dd, 500)
     plt.xlabel('RA (deg)')
     plt.ylabel('Dec (deg)')
-    plt.savefig('all-radec.png')
+    plt.savefig('all-radec-%s.png' % tag)
 
     I,J,d = match_radec(rr, dd, rr, dd, 0.2/3600, notself=True)
     plt.clf()
     plt.hist(d * 3600. * 1000., bins=50)
     plt.xlabel('Distance between stars (milli-arcsec)')
-    plt.savefig('all-dists.png')
+    plt.savefig('all-dists-%s.png' % tag)
 
-def check_results_2():
-    T = fits_table('all-rd.fits')
+def check_results_2(tag):
+    T = fits_table('all-rd-%s.fits' % tag)
     I,J,d = match_radec(T.ra, T.dec, T.ra, T.dec, 0.2/3600, notself=True)
     plt.clf()
     plt.hist(d * 3600. * 1000., bins=50)
     plt.xlabel('Distance between stars (milli-arcsec)')
-    plt.savefig('all-dists.png')
+    plt.savefig('all-dists-%s.png' % tag)
 
     plt.clf()
     plt.hist(d * 3600. * 1000., bins=50, log=True)
     plt.xlabel('Distance between stars (milli-arcsec)')
-    plt.savefig('all-dists-log.png')
+    plt.savefig('all-dists-log-%s.png' % tag)
 
-def apply_alignments():
+def apply_alignments(aff_fn, corners_fn, infns, pandas=True):
     from astrom_common import Affine
-    T = fits_table('affines.fits')
+    T = fits_table(aff_fn)
     affs = Affine.fromTable(T)
     print('Read affines:', affs)
 
     ibright = dict([(fn.strip(),i) for i,fn in enumerate(T.filenames)])
 
     corners = {}
-    for line in open('corners.txt').readlines():
+    for line in open(corners_fn).readlines():
         line = line.strip()
         words = line.split()
         ras = np.array([float(words[i]) for i in [1,3,5,7]])
@@ -77,11 +80,12 @@ def apply_alignments():
         corners[words[0]] = (ras,decs)
     from astrometry.util.miscutils import point_in_poly
 
-    fns1 = glob('data/M31-*ST/proc_default/M31-*ST.phot.hdf5')
-    fns2 = glob('data/M31-*ST/M31-*ST.phot.hdf5')
-    fns1.sort()
-    fns2.sort()
-    fns = fns1 + fns2
+    #fns1 = glob('data/M31-*ST/proc_default/M31-*ST.phot.hdf5')
+    #fns2 = glob('data/M31-*ST/M31-*ST.phot.hdf5')
+    #fns1.sort()
+    #fns2.sort()
+    #fns = fns1 + fns2
+    fns = infns
     print('Files:', fns)
 
     veto_polys = []
@@ -106,13 +110,23 @@ def apply_alignments():
         aff = affs[ii]
 
         print('Reading', photfile)
-        df = pd.read_hdf(photfile, key='data')
-        ds = vaex.from_pandas(df)
+        if pandas:
+            df = pd.read_hdf(photfile, key='data')
+            ds = vaex.from_pandas(df)
+        else:
+            ds = vaex.open(photfile)
+
+        def get_field(ds, col):
+            if pandas:
+                return ds.evaluate(ds[col])
+            else:
+                return ds.evaluate(ds[col.upper()])
+
         print(len(ds), 'rows')
-        ra = ds.evaluate(ds['ra'])
-        dec = ds.evaluate(ds['dec'])
+        ra  = get_field(ds, 'ra')
+        dec = get_field(ds, 'dec')
         ra,dec = aff.apply(ra, dec)
-        
+
         Tleft = fits_table()
         Tleft.ra = ra
         Tleft.dec = dec
@@ -130,33 +144,37 @@ def apply_alignments():
         print(np.sum(inside), 'stars are uniquely in this half-brick')
         
         veto_polys.append(poly)
-        
-        outfn = 'out-%s.hdf5' % basename
-        df[inside].to_hdf(outfn, key='data', mode='w',
+
+        outfn = 'out/out-%s.hdf5' % basename
+        if pandas:
+            df[inside].to_hdf(outfn, key='data', mode='w',
                           format='table', complevel=9, complib='zlib')
+        else:
+            df = ds.take(np.flatnonzero(inside)).to_pandas_df()
+            df.to_hdf(outfn, key='data', mode='w',
+                      format='table', complevel=9, complib='zlib')
         print('Wrote', outfn)
 
-        outfn = 'cut-%s.hdf5' % basename
-        df[np.logical_not(inside)].to_hdf(outfn, key='data', mode='w',
-                          format='table', complevel=9, complib='zlib')
+        outfn = 'cut/cut-%s.hdf5' % basename
+        if pandas:
+            df[np.logical_not(inside)].to_hdf(outfn, key='data', mode='w',
+                                              format='table', complevel=9, complib='zlib')
+        else:
+            df = ds.take(np.flatnonzero(np.logical_not(inside))).to_pandas_df()
+            df.to_hdf(outfn, key='data', mode='w',
+                      format='table', complevel=9, complib='zlib')
         print('Wrote', outfn)
-
     
 
-def to_fits():
-    # NOTE -- there *are* duplicates in these sets.  (B23).
-    # Take the "proc_default" ones first, if both exist.
-    fns1 = glob('data/M31-*ST/proc_default/M31-*ST.phot.hdf5')
-    fns1.sort()
-    fns2 = glob('data/M31-*ST/M31-*ST.phot.hdf5')
-    fns2.sort()
-    fns = fns1 + fns2
+def to_fits(fns, pandas=True):
     print('Files:', fns)
 
     plt.clf()
 
+    outfns = []
+
     for photfile in fns:
-        #photfile = 'data/M31-B23-WEST/M31-B23-WEST.phot.hdf5'
+        #photfile like 'data/M31-B23-WEST/M31-B23-WEST.phot.hdf5'
         print()
         print(photfile)
         basename = os.path.basename(photfile)
@@ -164,6 +182,7 @@ def to_fits():
         print('Base name:', basename)
     
         outfn = basename + '-bright.fits'
+        outfns.append(outfn)
         if os.path.exists(outfn):
             print('Exists:', outfn)
 
@@ -174,25 +193,52 @@ def to_fits():
                 continue
             print('Input file is newer!')
 
+        basename = basename.replace('_', '-')
         words = basename.split('-')
         assert(len(words) == 3)
+        galaxy = words[0]
+        assert(galaxy.startswith('M'))
         brick = words[1]
         assert(brick[0] == 'B')
         brick = int(brick[1:], 10)
         print('Brick number:', brick)
-        ew = words[2]
-        assert(ew in ['EAST', 'WEST'])
-        east = (ew == 'EAST')
+        dirn = words[2]
+        #ew = words[2]
+        assert(dirn in ['EAST', 'WEST', 'NW','NN','NE','SW','SS','SE'])
+        #east = (ew == 'EAST')
     
-        df = pd.read_hdf(photfile, key='data')
-        ds = vaex.from_pandas(df)
+        if pandas:
+            df = pd.read_hdf(photfile, key='data')
+            ds = vaex.from_pandas(df)
+        else:
+            ds = vaex.open(photfile)
         print('Read', photfile)
         #print(ds)
-    
-        good = ds['f814w_gst']
+
+        def get_field(ds, col):
+            if pandas:
+                return ds.evaluate(ds[col])
+            else:
+                return ds.evaluate(ds[col.upper()])
+
         print(len(ds), 'rows')
-        ds = ds[good]
-        print(len(ds), 'gst on F814W')
+        if 'f814w_gst' in ds:
+            good = get_field(ds, 'f814w_gst')
+            print(len(ds), 'rows')
+            #print('good:', good.dtype)
+            from collections import Counter
+            print('good:', Counter(good))
+            #print('ds:', ds.dtype)
+            #ds = ds[good]
+            #ds = ds[np.flatnonzero(good)]
+            ds = ds.take(np.flatnonzero(good))
+            #print('ds:', ds)
+            print(len(ds), 'gst on F814W')
+        else:
+            ds.select('(F814W_SNR > 4) & (F814W_SHARP**2 < 0.2)', name='F814W_ST')
+            ds.select('F814W_ST & (F814W_CROWD < 2.25)', name='F814W_GST')
+            ds = ds[ds['F814W_GST']]
+            print(len(ds), 'gst on F814W')
     
         # good = ds.evaluate(ds['f475w_gst'])
         # print(good)
@@ -205,18 +251,26 @@ def to_fits():
         # print('Of those,', np.sum(ds.evaluate(ds['f110w_gst'])), 'are F110W_GST')
         # print('Of those,', np.sum(ds.evaluate(ds['f160w_gst'])), 'are F160W_GST')
     
-        mag = ds.evaluate(ds['f814w_vega'])
+        mag = get_field(ds, 'f814w_vega')
         print('Of', len(mag), 'mags,', np.sum(np.isfinite(mag)), 'are finite')
         print('range:', np.nanmin(mag), np.nanmax(mag))
     
-        plt.hist(mag, range=(20, 28), bins=50, label=basename)
-    
-        ds = ds[ds['f814w_vega'] < 24]
+        plt.hist(mag[np.isfinite(mag)], range=(20, 28), bins=50, label=basename)
+
+        with np.errstate(invalid='ignore'):
+            print('ds', ds)
+            if pandas:
+                #ds = ds[mag < 24]
+                ds = ds.take(np.flatnonzero(mag < 24))
+            else:
+                ds = ds[ds['F814W_VEGA'] < 24]
+                #ds = ds.take(np.flatnonzero(ds['F814W_VEGA'] < 24))
+            print('ds cut', ds)
         print(len(ds), 'with F814W < 24')
-    
-        mag = ds.evaluate(ds['f814w_vega'])
-        xx = ds.evaluate(ds['x'])
-        yy = ds.evaluate(ds['y'])
+
+        mag = get_field(ds, 'f814w_vega')
+        xx  = get_field(ds, 'x')
+        yy  = get_field(ds, 'y')
 
         xlo = xx.min()
         xhi = xx.max()
@@ -248,24 +302,30 @@ def to_fits():
         #print('100k-th star: mag', mag[I[-1]])
         ds = ds.take(II)
 
+        cols = ['ra','dec','x', 'y']
+        if pandas:
+            cols.append('index')
+
         T = fits_table()
-        for col in ['ra','dec','x', 'y', 'index']:
-            T.set(col, ds.evaluate(ds[col]))
+        for col in cols:
+            T.set(col, get_field(ds, col))
         for filt in [814, 475, 336, 275, 110, 160]:
             for col in ['f%iw_vega']:
                 colname = col % filt
-                T.set(colname, ds.evaluate(ds[colname]))
+                T.set(colname, get_field(ds, colname))
+        T.galaxy = np.array([galaxy] * len(T))
         T.brick = np.zeros(len(T), np.uint8) + brick
-        T.east = np.zeros(len(T), bool)
-        T.east[:] = east
+        #T.east = np.zeros(len(T), bool)
+        #T.east[:] = east
+        T.dirn = np.array([dirn] * len(T))
         T.writeto(outfn)
     
     plt.legend()
     plt.xlabel('F814W mag')
     plt.savefig('mags.png')
+    return outfns
 
-
-def find_alignments():
+def find_alignments(fns, wcsfns, gaia_fn, aff_fn, aligned_fn):
     from astrometry.libkd.spherematch import tree_build_radec, trees_match
     from astrometry.libkd.spherematch import match_radec
     from astrometry.util.plotutils import plothist
@@ -275,46 +335,11 @@ def find_alignments():
     from astrom_common import getwcsoutline
     from singles import find_overlaps
 
-    fns = glob('M31-*-bright.fits')
-    fns.sort()
-
-    keepfns = []
     if True:
-        #data/M31-B23-WEST/M31-B23-WEST_F475W_drz.chip1.fits
         WCS = []
-        for fn in fns:
-            print()
-            print(fn)
-            base = fn.replace('-bright.fits', '')
-            pat1 = 'data/' + base + '/proc_default/' + base + '*drz.chip1.fits'
-            pat2 = 'data/' + base + '/' + base + '*drz.chip1.fits'
-            #pat3 = 'data2/' + base + '/proc_default/' + base + '*drz.chip1.fits'
-            #pat4 = 'data/' + base + '/' + base + '*_drz_head.fits'
-            print(pat1, pat2)#, pat4)
-            ff = glob(pat1) + glob(pat2)# + glob(pat4) #+ glob(pat4)
-            print('WCS files:', ff)
-            #assert(len(ff) == 1)
-            if len(ff) < 1:
-                print('xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx')
-                continue
-            if len(ff) > 1:
-                print('Keeping', ff[0])
-            keepfns.append(fn)
-            fn = ff[0]
+        for fn in wcsfns:
             wcs = Tan(fn)
-            F = fitsio.FITS(fn)
-            info = F[0].get_info()
-            H,W = info['dims']
-            wcs.imagew = W
-            wcs.imageh = H
             WCS.append(wcs)
-
-            wcs.write_to(base + '-wcs.fits')
-
-        #bomb()
-        fns = keepfns
-
-    
 
     names = [fn.replace('-bright.fits', '') for fn in fns]
 
@@ -346,7 +371,7 @@ def find_alignments():
     plt.ylabel('Dec (deg)')
     plt.savefig('match-all.png')
 
-    Tref = fits_table('gaia.fits')
+    Tref = fits_table(gaia_fn)
     r_arcsec = 0.2
     I,J,d = match_radec(Tref.ra, Tref.dec, allra, alldec, r_arcsec/3600.)
     dec = alldec[J]
@@ -521,9 +546,7 @@ def find_alignments():
     # FAKE -- used as a name in alignment_plots
     T.gst = np.array([n + '.gst.fits' for n in names])
 
-    afffn = 'affines.fits'
-    T.writeto(afffn)
-
+    T.writeto(aff_fn)
 
 
     # Final matching of all stars
@@ -576,7 +599,7 @@ def find_alignments():
                 'f275w_vega', 'f110w_vega', 'f160w_vega',
                 'name']:
         T.set(col, np.hstack([t.get(col) for t in TT]))
-    T.writeto('aligned.fits')
+    T.writeto(aligned_fn)
 
     if False:
         from singles import alignment_plots
@@ -605,8 +628,129 @@ def find_alignments():
 
 if __name__ == '__main__':
     import sys
-    #to_fits()
-    #find_alignments()
-    apply_alignments()
+    import fitsio
+    from astrometry.util.util import Tan
+
     #check_results_2()
+    #aligned_fns = glob('out-M31-B*.hdf5')
+    #check_results(aligned_fns, 'M31')
+    #sys.exit(0)
+
+    phat = True
+
+    if phat:
+        # NOTE -- there *are* duplicates in these sets.  (B23).
+        # Take the "proc_default" ones first, if both exist.
+        fns1 = glob('data/M31-*ST/proc_default/M31-*ST.phot.hdf5')
+        fns1.sort()
+        fns2 = glob('data/M31-*ST/M31-*ST.phot.hdf5')
+        fns2.sort()
+        infns = fns1 + fns2
+        basenames = set()
+        keepfns = []
+        for fn in infns:
+            basename = os.path.basename(fn)
+            if basename in basenames:
+                continue
+            keepfns.append(fn)
+            basenames.add(basename)
+        infns = keepfns
+
+        to_fits(infns, pandas=True)
+
+        outfns = glob('M31-*-bright.fits')
+        outfns.sort()
+
+        gaia_fn = 'gaia.fits'
+        aff_fn = 'affines.fits'
+        aligned_fn = 'aligned.fits'
+
+        keepfns = []
+        wcsfns = []
+        for fn in outfns:
+            base = fn.replace('-bright.fits', '')
+
+            wfn = base + '-wcs.fits'
+            if os.path.exists(wfn):
+                print('Exists:', wfn)
+                keepfns.append(fn)
+                wcsfns.append(wfn)
+                continue
+
+            #data/M31-B23-WEST/M31-B23-WEST_F475W_drz.chip1.fits
+            pat1 = 'data/' + base + '/proc_default/' + base + '*drz.chip1.fits'
+            pat2 = 'data/' + base + '/' + base + '*drz.chip1.fits'
+            print(pat1, pat2)
+            ff = glob(pat1) + glob(pat2)
+            print('WCS files:', ff)
+            if len(ff) < 1:
+                print('xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx')
+                continue
+            if len(ff) > 1:
+                print('Keeping', ff[0])
+            wcsfn = ff[0]
+
+
+            F = fitsio.FITS(wcsfn)
+            info = F[0].get_info()
+            H,W = info['dims']
+            wcs = Tan(wcsfn)
+            wcs.imagew = W
+            wcs.imageh = H
+            wfn = base + '-wcs.fits'
+            wcs.write_to(wfn)
+
+        corners_fn = 'corners.txt'
+        kwargs = dict()
+
+        aligned_fns = glob('out-M31-B*.hdf5')
+        tag = 'M31'
+
+    else:
+        infns = glob('m33-data/legacy_phot/M33_*.phot.hdf5')
+        infns.sort()
+        kwargs = dict(pandas=False)
+    
+        gaia_fn = 'gaia-m33.fits'
+        aff_fn = 'affines-m33.fits'
+        aligned_fn = 'aligned-m33.fits'
+    
+        corners_fn = 'corners-m33.txt'
+
+        outfns = to_fits(infns, **kwargs)
+    
+        wcsfns = []
+        for fn in outfns:
+            base = fn.replace('-bright.fits', '')
+            wcsfn = base + '.wcs'
+            if not os.path.exists(wcsfn):
+                #fn = 'm33-data/' + base + '/' + base + '_F475W_drc_sci.chip1.fits.gz'
+                wfn = 'm33-data/legacy_wcs/' + base + '_F475W_drc_wcs.txt'
+                import astropy.io.fits
+                hdr = astropy.io.fits.Header.fromtextfile(wfn)
+                W = hdr['NAXIS1']
+                H = hdr['NAXIS2']
+                hdr['IMAGEW'] = W
+                hdr['IMAGEH'] = H
+                astropy.io.fits.writeto(wcsfn, None, header=hdr)
+            wcsfns.append(wcsfn)
+            
+        for fn,wcsfn in zip(infns, wcsfns):
+            # corners
+            ds = vaex.open(fn)
+            x0, x1 = ds.minmax('X')
+            y0, y1 = ds.minmax('Y')
+            print(fn, 'x', x0, x1, 'y', y0, y1)
+            pix_coords = np.c_[[x0, x0, x1, x1], [y0, y1, y1, y0]]
+            from astropy.wcs import WCS
+            wcs_coords = WCS(wcsfn).all_pix2world(pix_coords, 0.5) # 0.5 is the dolphot pixel "origin"
+            print('wcs', wcs_coords)
+
+        aligned_fns = glob('out-M33_B*.hdf5')
+        tag = 'M33'
+
+    find_alignments(outfns, wcsfns, gaia_fn, aff_fn, aligned_fn)
+    apply_alignments(aff_fn, corners_fn, infns, **kwargs)
+    #check_results(aligned_fns, tag)
+    #check_results_2(tag)
     sys.exit(0)
